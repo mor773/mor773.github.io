@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "id": "u001",
+      "username": "customer",
+      "name": "林晓",
+      "passwordHash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "role": "customer",
+      "title": "客户 · 项目负责人"
+    },
+    {
+      "id": "u002",
+      "username": "developer",
+      "name": "陈默",
+      "passwordHash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "role": "developer",
+      "title": "开发工程师"
+    },
+    {
+      "id": "u003",
+      "username": "admin",
+      "name": "周宁",
+      "passwordHash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "role": "admin",
+      "title": "系统管理员"
+    }
+  ]
+}

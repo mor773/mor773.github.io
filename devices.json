@@ -1,0 +1,371 @@
+{
+  "scenes": [
+    {
+      "id": "pig-house",
+      "name": "猪舍温湿氨气检测",
+      "subtitle": "养殖环境监测",
+      "description": "持续关注温度、湿度与氨气浓度，让养殖环境一目了然。",
+      "icon": "environment",
+      "color": "green",
+      "metrics": [
+        {
+          "key": "temperature",
+          "name": "温度",
+          "unit": "°C",
+          "min": 18,
+          "max": 30,
+          "icon": "temperature"
+        },
+        {
+          "key": "humidity",
+          "name": "湿度",
+          "unit": "%",
+          "min": 40,
+          "max": 75,
+          "icon": "humidity"
+        },
+        {
+          "key": "ammonia",
+          "name": "氨气浓度",
+          "unit": "ppm",
+          "min": 0,
+          "max": 20,
+          "icon": "environment"
+        }
+      ]
+    },
+    {
+      "id": "power-line",
+      "name": "高压线材侦测",
+      "subtitle": "电力设备监测",
+      "description": "掌握线材温度、电压与电流变化，及时发现设备运行异常。",
+      "icon": "power",
+      "color": "blue",
+      "metrics": [
+        {
+          "key": "temperature",
+          "name": "线材温度",
+          "unit": "°C",
+          "min": 0,
+          "max": 70,
+          "icon": "temperature"
+        },
+        {
+          "key": "voltage",
+          "name": "电压",
+          "unit": "kV",
+          "min": 9,
+          "max": 11,
+          "icon": "power"
+        },
+        {
+          "key": "current",
+          "name": "电流",
+          "unit": "A",
+          "min": 0,
+          "max": 200,
+          "icon": "power"
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "ENV-001",
+      "sceneId": "pig-house",
+      "name": "设备 1",
+      "location": "1 号猪舍 · 东侧",
+      "online": true,
+      "sampleInterval": 30,
+      "values": {
+        "temperature": 25.6,
+        "humidity": 62.4,
+        "ammonia": 8.2
+      },
+      "history": {
+        "temperature": [
+          22.8,
+          23.8,
+          23.0,
+          24.8,
+          24.3,
+          26.1,
+          25.1,
+          25.6
+        ],
+        "humidity": [
+          55.5,
+          58.0,
+          56.2,
+          60.5,
+          59.3,
+          63.6,
+          61.2,
+          62.4
+        ],
+        "ammonia": [
+          7.3,
+          7.6,
+          7.4,
+          8.0,
+          7.8,
+          8.4,
+          8.0,
+          8.2
+        ]
+      },
+      "diagnostics": []
+    },
+    {
+      "id": "ENV-002",
+      "sceneId": "pig-house",
+      "name": "设备 2",
+      "location": "1 号猪舍 · 西侧",
+      "online": true,
+      "sampleInterval": 30,
+      "values": {
+        "temperature": 28.1,
+        "humidity": 68.5,
+        "ammonia": 23.6
+      },
+      "history": {
+        "temperature": [
+          25.0,
+          26.1,
+          25.3,
+          27.3,
+          26.7,
+          28.7,
+          27.5,
+          28.1
+        ],
+        "humidity": [
+          61.0,
+          63.7,
+          61.6,
+          66.4,
+          65.1,
+          69.9,
+          67.1,
+          68.5
+        ],
+        "ammonia": [
+          21.0,
+          21.9,
+          21.2,
+          22.9,
+          22.4,
+          24.1,
+          23.1,
+          23.6
+        ]
+      },
+      "diagnostics": [
+        {
+          "type": "SENSOR_THRESHOLD_HIGH",
+          "level": "warning",
+          "message": "氨气浓度超过配置上限",
+          "source": "NH3 / ADC channel 3"
+        }
+      ]
+    },
+    {
+      "id": "ENV-003",
+      "sceneId": "pig-house",
+      "name": "设备 3",
+      "location": "2 号猪舍 · 中部",
+      "online": false,
+      "sampleInterval": 30,
+      "values": {
+        "temperature": 24.3,
+        "humidity": 60.1,
+        "ammonia": 7.5
+      },
+      "history": {
+        "temperature": [
+          21.6,
+          22.6,
+          21.9,
+          23.6,
+          23.1,
+          24.8,
+          23.8,
+          24.3
+        ],
+        "humidity": [
+          53.5,
+          55.9,
+          54.1,
+          58.3,
+          57.1,
+          61.3,
+          58.9,
+          60.1
+        ],
+        "ammonia": [
+          6.7,
+          7.0,
+          6.8,
+          7.3,
+          7.1,
+          7.7,
+          7.3,
+          7.5
+        ]
+      },
+      "diagnostics": [
+        {
+          "type": "DEVICE_OFFLINE",
+          "level": "error",
+          "message": "未收到设备心跳，请检查电源与网络",
+          "source": "MQTT / heartbeat"
+        }
+      ]
+    },
+    {
+      "id": "PWR-001",
+      "sceneId": "power-line",
+      "name": "设备 1",
+      "location": "A 区 · 进线柜",
+      "online": true,
+      "sampleInterval": 30,
+      "values": {
+        "temperature": 42.8,
+        "voltage": 10.2,
+        "current": 125.6
+      },
+      "history": {
+        "temperature": [
+          38.1,
+          39.8,
+          38.5,
+          41.5,
+          40.7,
+          43.7,
+          41.9,
+          42.8
+        ],
+        "voltage": [
+          9.1,
+          9.5,
+          9.2,
+          9.9,
+          9.7,
+          10.4,
+          10.0,
+          10.2
+        ],
+        "current": [
+          111.8,
+          116.8,
+          113.0,
+          121.8,
+          119.3,
+          128.1,
+          123.1,
+          125.6
+        ]
+      },
+      "diagnostics": []
+    },
+    {
+      "id": "PWR-002",
+      "sceneId": "power-line",
+      "name": "设备 2",
+      "location": "B 区 · 配电室",
+      "online": true,
+      "sampleInterval": 30,
+      "values": {
+        "temperature": 48.5,
+        "voltage": 10.1,
+        "current": 142.3
+      },
+      "history": {
+        "temperature": [
+          43.2,
+          45.1,
+          43.6,
+          47.0,
+          46.1,
+          49.5,
+          47.5,
+          48.5
+        ],
+        "voltage": [
+          9.0,
+          9.4,
+          9.1,
+          9.8,
+          9.6,
+          10.3,
+          9.9,
+          10.1
+        ],
+        "current": [
+          126.6,
+          132.3,
+          128.1,
+          138.0,
+          135.2,
+          145.1,
+          139.5,
+          142.3
+        ]
+      },
+      "diagnostics": []
+    },
+    {
+      "id": "PWR-003",
+      "sceneId": "power-line",
+      "name": "设备 3",
+      "location": "C 区 · 线缆通道",
+      "online": false,
+      "sampleInterval": 30,
+      "values": {
+        "temperature": 39.2,
+        "voltage": 10.3,
+        "current": 108.2
+      },
+      "history": {
+        "temperature": [
+          34.9,
+          36.5,
+          35.3,
+          38.0,
+          37.2,
+          40.0,
+          38.4,
+          39.2
+        ],
+        "voltage": [
+          9.2,
+          9.6,
+          9.3,
+          10.0,
+          9.8,
+          10.5,
+          10.1,
+          10.3
+        ],
+        "current": [
+          96.3,
+          100.6,
+          97.4,
+          105.0,
+          102.8,
+          110.4,
+          106.0,
+          108.2
+        ]
+      },
+      "diagnostics": [
+        {
+          "type": "DEVICE_OFFLINE",
+          "level": "error",
+          "message": "未收到设备心跳，请检查电源与网络",
+          "source": "MQTT / heartbeat"
+        }
+      ]
+    }
+  ]
+}
