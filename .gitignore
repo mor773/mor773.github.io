@@ -3,3 +3,13 @@
 .codex/
 
 workspace-github*
+__pycache__/
+*.py[cod]
+
+.venv/
+
+.pio/
+firmware/**/include/secrets.h
+firmware/**/build/
+
+dist/

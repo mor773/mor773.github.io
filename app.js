@@ -1,5 +1,5 @@
 const app = document.querySelector('#app');
-const roles = { customer: {label:'客户',color:'green'}, admin: {label:'管理员',color:'purple'}, developer: {label:'开发人员',color:'blue'} };
+const roles = { customer: {label:'客户',color:'green'}, admin: {label:'平台管理员',color:'purple'}, developer: {label:'客户开发者',color:'blue'} };
 const paths = {
  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
  folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/>', check: '<path d="m6 12 4 4 8-8"/>', task: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/>', users: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-16a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 5"/>', arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>', bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-11 12h4"/>', logout: '<path d="M9 4H4v16h5m0-8h12m-4-4 4 4-4 4"/>', lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', code: '<path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-14-2 18"/>', chat: '<path d="M21 4H3v14h4v4l5-4h9z"/><path d="M7 9h10M7 13h6"/>', eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12"/><circle cx="12" cy="12" r="3"/>', help: '<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4 3v2m-1 3h.01"/>', shield: '<path d="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6z"/><path d="m8 11 3 3 5-5"/>'
@@ -16,7 +16,7 @@ Object.assign(paths, {
  settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="15" cy="17" r="3" fill="currentColor"/>'
 });
 const validRole = role => Object.hasOwn(roles, role) ? role : 'customer';
-const canEdit = () => ['admin','developer'].includes(currentUser?.role);
+const canEdit = () => currentUser?.role === 'developer' && device()?.companyId === currentUser.companyId;
 let users=[], scenes=[], devices=[], currentUser=null, sceneId=null, deviceId=null, view='scenes', notice='';
 const storageKey='iot-device-overrides-v1';
 const scene = () => scenes.find(s=>s.id===sceneId);
@@ -31,68 +31,86 @@ function effective(d) {
 function metricConfig(s,d,m) { const limit=d.thresholds?.[m.key]; return {...m,min:Number.isFinite(limit?.min)?limit.min:m.min,max:Number.isFinite(limit?.max)?limit.max:m.max}; }
 function alarms(s,d) {return s.metrics.filter(m=>{const c=metricConfig(s,d,m),v=d.values[m.key];return Number.isFinite(v)&&(v<c.min||v>c.max);});}
 function status(s,d) { return !d.online?['离线','gray']:alarms(s,d).length?['预警','orange']:['运行正常','green']; }
-function warningDevices() {
- return devices.filter(d => d.online && alarms(scenes.find(s => s.id === d.sceneId), effective(d)).length > 0);
-}
-function openDevice(id) {
- const selected = devices.find(d => d.id === id);
- if (!selected) return;
- sceneId = selected.sceneId;
- deviceId = selected.id;
- view = currentUser ? 'detail' : 'login';
- notice = '';
- render();
- window.scrollTo(0, 0);
- document.querySelector('main h1')?.focus({preventScroll:true});
-}
-function openWarnings() {
- const list = warningDevices();
- if (list.length === 1) return openDevice(list[0].id);
- view = 'alerts'; sceneId = null; deviceId = null; notice = '';
- render();
- window.scrollTo(0, 0);
- document.querySelector('main h1')?.focus({preventScroll:true});
-}
-function renderAlerts() {
- const list = warningDevices();
- return heading('ALERTS / DEVICES', '预警设备', `共 ${list.length} 台设备超出阈值，点击设备查看异常指标。`, '<button class="secondary" data-home>返回场景</button>') +
- (list.length ? `<div class="device-grid">${list.map(raw => {
-  const d = effective(raw), s = scenes.find(s => s.id === d.sceneId), warnings = alarms(s, d);
-  return `<button class="device-card" data-device="${safe(d.id)}"><div class="card-top"><span class="project-symbol orange">${icon('bell')}</span><span class="badge orange">预警</span></div><span class="device-code">${safe(d.id)}</span><h2>${safe(d.name)}</h2><p>${safe(s.name)} · ${safe(d.location)}</p><div class="device-sensors">${warnings.map(m => `<span class="warning-metric">${safe(m.name)} ${safe(d.values[m.key])} ${safe(m.unit)}</span>`).join('')}</div><div class="device-action"><span>查看异常指标</span>${icon('arrow')}</div></button>`;
- }).join('')}</div>` : '<section class="panel read-only-panel"><span class="feature-icon green">' + icon('check') + '</span><h2>当前没有预警设备</h2><p>所有在线设备的数据均在配置范围内。</p></section>');
-}
-function logo(){return `<span class="brand-mark">${icon('device')}</span><span>物联空间<span class="brand-en">IOT PLATFORM</span></span>`;}
-function render(){
- if(view==='detail'&&!currentUser){view='login';}
- const s=scene(),d=device(),role=currentUser?roles[currentUser.role]:null;
- const title=view==='scenes'?'场景总览':view==='alerts'?'预警设备':view==='devices'?s?.name:view==='login'?'身份验证':effective(d).name;
- app.innerHTML=`<div class="workspace"><aside class="sidebar"><a href="./" class="brand">${logo()}</a><div class="workspace-label">监测工作空间 <span>DEMO</span></div><nav aria-label="主导航"><button class="nav-item ${view==='scenes'?'active':''}" data-home aria-label="场景总览" title="场景总览">${icon('grid')}<span>场景总览</span></button>${scenes.map(x=>`<button class="nav-item ${sceneId===x.id&&view!=='scenes'?'active':''}" data-scene="${safe(x.id)}" aria-label="${safe(x.name)}" title="${safe(x.name)}">${icon(x.icon)}<span>${safe(x.name)}</span></button>`).join('')}</nav><div class="sidebar-bottom"><div class="help-card"><span class="help-icon">${icon('device')}</span><strong>从设备，到每一项数据</strong><p>选择场景与设备，查看属于你的监测空间。</p><span class="badge blue">模拟设备数据</span></div><div class="sidebar-user"><span class="user-avatar">${safe(currentUser?.name?.slice(0,1)||'访')}</span><div><strong>${safe(currentUser?.name||'访客')}</strong><small>${role?.label||'选择设备后登录'}</small></div>${currentUser?`<button class="icon-button" id="logout" aria-label="退出登录" title="退出登录">${icon('logout')}</button>`:''}</div></div></aside><div class="main-shell"><header class="topbar"><div><button class="crumb-button" data-home>物联网平台</button><span class="slash">/</span><strong>${safe(title||'设备')}</strong></div><div class="topbar-right"><span class="environment"><i></i> 模拟数据</span><span class="header-divider"></span><span class="badge ${role?.color||'gray'}">${icon('shield')}${role?.label||'访客'}</span></div></header><main class="main-content"><div class="flow-strip"><span class="${view==='scenes'?'current':''}">01 选择场景</span>${icon('arrow')}<span class="${['devices','alerts'].includes(view)?'current':''}">02 选择设备</span>${icon('arrow')}<span class="${view==='login'?'current':''}">03 身份验证</span>${icon('arrow')}<span class="${view==='detail'?'current':''}">04 监测数据</span></div>${notice?`<div class="notice" role="status">${safe(notice)}</div>`:''}${view==='scenes'?renderScenes():view==='devices'?renderDevices():view==='alerts'?renderAlerts():view==='login'?renderLogin():renderDetail()}<footer class="main-footer"><span>物联空间 · 让设备数据清晰可见</span><span>静态演示 · 尚未连接 PCB 或真实传感器</span></footer></main></div></div>`;
- bind();
-}
-function heading(kicker,title,description,extra=''){return `<div class="page-heading"><div><div class="eyebrow">${kicker}</div><h1 tabindex="-1">${title}</h1><p>${description}</p></div>${extra}</div>`;}
-function renderScenes(){
- return heading('CONNECTED DEVICES, CLEARER INSIGHTS','每一个场景，都尽在掌握','从使用场景出发，连接设备与环境数据。')+`<section class="welcome-banner"><div><span class="banner-label">物联网监测平台</span><h2>看见数据，掌握每一次变化</h2><p>选择场景 → 选择设备 → 验证身份 → 查看监测数据</p></div><div class="banner-art">${icon('device')}</div></section><div class="stats-grid">${[['grid','监测场景',scenes.length,'覆盖环境与电力场景','blue'],['device','设备总数',devices.length,'按场景统一管理','purple'],['check','在线设备',devices.filter(d=>d.online).length,'当前模拟连接状态','green'],['bell','预警设备',warningDevices().length,warningDevices().length===0?'当前没有预警':warningDevices().length===1?'点击查看异常设备 →':'点击查看预警列表 →','orange']].map(([i,l,n,t,c])=>`<${i==='bell'?'button':'div'} class="stat-card ${i==='bell'?'stat-action':''}" ${i==='bell'?`type="button" id="warning-devices" aria-label="预警设备，${n} 台，${n===1?'查看异常设备':'查看预警列表'}"`:''}><span class="feature-icon ${c}">${icon(i)}</span><span class="stat-label">${l}</span><strong>${n}<small>个</small></strong><p>${t}</p></${i==='bell'?'button':'div'}>`).join('')}</div><div class="section-heading"><h2>选择监测场景 <span>SCENARIOS</span></h2><span class="muted small">${scenes.length} 个场景</span></div><div class="scene-grid">${scenes.map(s=>{const list=devices.filter(d=>d.sceneId===s.id);return `<button class="scene-card" data-scene="${safe(s.id)}"><div class="scene-visual ${s.color}"><span class="scene-grid-pattern"></span><span class="scene-visual-icon">${icon(s.icon)}</span><span class="scene-chip">${safe(s.subtitle)}</span><div class="mini-nodes"><i></i><i></i><i></i></div></div><div class="scene-body"><span class="scene-meta">${list.length} 台设备 <i>·</i> ${list.filter(d=>d.online).length} 台在线</span><h2>${safe(s.name)}</h2><p>${safe(s.description)}</p><div class="scene-tags">${s.metrics.map(m=>`<span>${icon(m.icon)}${safe(m.name)}</span>`).join('')}</div><div class="scene-action">进入场景 ${icon('arrow')}</div></div></button>`;}).join('')}</div>`;
-}
-function renderDevices(){const s=scene(),list=devices.filter(d=>d.sceneId===s.id);return heading('SCENARIO / DEVICES',safe(s.name),'选择一台设备，验证身份后查看传感器数据。',`<button class="secondary" data-home>返回场景</button>`)+`<div class="scene-summary"><span class="feature-icon ${s.color}">${icon(s.icon)}</span><div><strong>${safe(s.subtitle)}</strong><p>${safe(s.description)}</p></div><span class="badge green">${list.filter(d=>d.online).length} / ${list.length} 在线</span></div><div class="device-grid">${list.map(raw=>{const d=effective(raw),[label,color]=status(s,d);return `<button class="device-card" data-device="${safe(d.id)}"><div class="card-top"><span class="project-symbol ${s.color}">${icon('device')}</span><span class="badge ${color}"><i class="dot"></i>${label}</span></div><span class="device-code">${safe(d.id)}</span><h2>${safe(d.name)}</h2><p>${safe(d.location)}</p><div class="device-sensors">${s.metrics.map(m=>`<span>${safe(m.name)}</span>`).join('')}</div><div class="device-action"><span>${currentUser?'查看监测数据':'登录后查看数据'}</span>${icon(currentUser?'arrow':'lock')}</div></button>`;}).join('')}</div>`;}
-function renderLogin(){const s=scene(),d=effective(device());return `<div class="auth-layout"><div class="auth-context"><span class="eyebrow">IDENTITY VERIFICATION</span><h1>连接设备前，<br>先认识一下你。</h1><p>同一台设备，为不同身份提供恰到好处的信息与操作。</p><div class="auth-selected"><span class="feature-icon ${s.color}">${icon('device')}</span><div><strong>${safe(d.name)} <small>${safe(d.id)}</small></strong><p>${safe(s.name)} / ${safe(d.location)}</p></div></div><div class="permission-list">${[['eye','客户','只读监测数据与趋势'],['settings','管理员','查看数据，修改设备配置'],['code','开发人员','查看与修改，额外显示报错类型']].map(([i,n,t])=>`<div>${icon(i)}<div><strong>${n}</strong><p>${t}</p></div></div>`).join('')}</div><button class="text-button" id="back-devices">返回设备列表 ${icon('arrow')}</button></div><section class="auth-form"><span class="eyebrow blue-text">WELCOME TO IOT SPACE</span><h2>登录监测空间</h2><p class="muted small">根据账号身份，自动匹配操作权限。</p><form id="login-form"><label for="username">账号</label><input id="username" autocomplete="username" placeholder="请输入账号" required maxlength="80"><label for="password">密码</label><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" placeholder="请输入密码" required><button type="button" id="toggle-password" aria-label="显示密码">${icon('eye')}</button></div><p class="error" id="login-error" role="alert"></p><button class="primary login-submit" type="submit">验证并查看设备 ${icon('arrow')}</button></form><div class="demo-accounts"><div class="demo-title">体验账号 <span>统一密码：123456</span></div><div class="demo-buttons">${['customer','admin','developer'].map(r=>`<button type="button" data-demo="${r}">${roles[r].label}</button>`).join('')}</div><small>未设置身份的账号默认按客户显示。</small></div></section></div>`;}
 function trend(m,d){const values=d.history[m.key]||[],lo=Math.min(...values)-1,hi=Math.max(...values)+1;const points=values.map((v,i)=>`${20+i*460/Math.max(1,values.length-1)},${112-(v-lo)/(hi-lo)*82}`).join(' ');return `<svg class="trend-chart" viewBox="0 0 500 140" role="img" aria-label="${safe(m.name)}最近八次模拟采样趋势"><path d="M20 30h460M20 70h460M20 112h460" stroke="#edf1f7" fill="none"/><polygon points="20,120 ${points} 480,120" fill="#ecf3ff"/><polyline points="${points}" fill="none" stroke="#547ee8" stroke-width="2.5" stroke-linejoin="round"/>${values.map((v,i)=>`<circle cx="${20+i*460/Math.max(1,values.length-1)}" cy="${112-(v-lo)/(hi-lo)*82}" r="3" fill="#547ee8"/>`).join('')}</svg>`;}
-function renderDetail(){const s=scene(),d=effective(device()),r=roles[currentUser.role],[label,color]=status(s,d),warnings=alarms(s,d);return heading('DEVICE / MONITORING',`${safe(d.name)} <span class="badge ${color}">${label}</span>`,`${safe(s.name)} · ${safe(d.location)} · ${safe(d.id)}`,`<button class="secondary" id="back-devices">切换设备 ${icon('arrow')}</button>`)+`<div class="access-banner"><span class="feature-icon ${r.color}">${icon('shield')}</span><div><strong>${r.label}监测空间</strong><p>${currentUser.role==='customer'?'你可以查看传感器数据、状态与采样趋势。':'你可以查看监测数据，并修改设备名称、位置、采样周期与告警阈值。'}${currentUser.role==='developer'?' 开发诊断已开启。':''}</p></div><span class="badge ${r.color}">${canEdit()?'可读可改':'只读'}</span></div>${!d.online?'<div class="offline-note">设备当前离线，下方显示最后一次模拟采样数据，不代表当前读数。</div>':''}${d.online&&warnings.length?`<div class="offline-note">${warnings.map(m=>safe(m.name)).join('、')}超出配置范围，请关注设备状态。</div>`:''}<div class="section-heading sensor-heading"><h2>传感器数据 <span>SENSOR DATA</span></h2><span class="muted small">${d.online?'模拟采样快照':'最后一次模拟采样'} · ${d.sampleInterval} 秒 / 次</span></div><div class="sensor-grid">${s.metrics.map(m=>{const c=metricConfig(s,d,m),value=d.values[m.key],warning=d.online&&warnings.some(w=>w.key===m.key);return `<section class="sensor-card ${warning?'sensor-warning':''}"><div class="sensor-title"><span class="feature-icon ${warning?'orange':'blue'}">${icon(m.icon)}</span><span>${safe(m.name)}</span><span class="badge ${!d.online?'gray':warning?'orange':'green'}">${!d.online?'历史值':warning?'超出范围':'正常'}</span></div><div class="sensor-value">${safe(value)}<small>${safe(m.unit)}</small></div><p>正常范围 ${c.min}–${c.max} ${safe(m.unit)}</p>${trend(m,d)}<div class="chart-caption"><span>最近 8 次模拟采样</span><span>最新</span></div></section>`;}).join('')}</div><div class="detail-grid"><section class="panel"><div class="section-heading"><h2>设备信息</h2><span class="badge blue">PCB 采集终端</span></div><dl class="device-info"><div><dt>设备编号</dt><dd>${safe(d.id)}</dd></div><div><dt>所属场景</dt><dd>${safe(s.name)}</dd></div><div><dt>安装位置</dt><dd>${safe(d.location)}</dd></div><div><dt>采样周期</dt><dd>${d.sampleInterval} 秒</dd></div><div><dt>数据来源</dt><dd>JSON 模拟数据</dd></div><div><dt>连接状态</dt><dd>${d.online?'模拟在线':'模拟离线'}</dd></div></dl></section>${canEdit()?renderSettings(s,d):`<section class="panel read-only-panel"><span class="feature-icon green">${icon('eye')}</span><h2>专注数据，一目了然</h2><p>当前为客户只读视图。设备参数与告警阈值由管理员或开发人员维护。</p><div class="readonly-tags"><span>${icon('check')} 监测读数</span><span>${icon('check')} 采样趋势</span><span>${icon('check')} 设备状态</span></div></section>`}</div>${currentUser.role==='developer'?renderDiagnostics(s,d):''}`;}
+function renderDetail(){const s=scene(),d=effective(device()),r=roles[currentUser.role],[label,color]=status(s,d),warnings=alarms(s,d);return heading('DEVICE / MONITORING',`${safe(d.name)} <span class="badge ${color}">${label}</span>`,`${safe(s.name)} · ${safe(d.location)} · ${safe(d.id)}`,`<button class="secondary" id="back-devices">切换设备 ${icon('arrow')}</button>`)+`<div class="access-banner"><span class="feature-icon ${r.color}">${icon('shield')}</span><div><strong>${r.label}监测空间</strong><p>${!canEdit()?'你可以查看传感器数据、状态与采样趋势。':'你可以查看监测数据，并修改设备名称、位置、采样周期与告警阈值。'}${currentUser.role==='developer'?' 开发诊断已开启。':''}</p></div><span class="badge ${r.color}">${canEdit()?'可读可改':'只读'}</span></div>${!d.online?'<div class="offline-note">设备当前离线，下方显示最后一次模拟采样数据，不代表当前读数。</div>':''}${d.online&&warnings.length?`<div class="offline-note">${warnings.map(m=>safe(m.name)).join('、')}超出配置范围，请关注设备状态。</div>`:''}<div class="section-heading sensor-heading"><h2>传感器数据 <span>SENSOR DATA</span></h2><span class="muted small">${d.online?'模拟采样快照':'最后一次模拟采样'} · ${d.sampleInterval} 秒 / 次</span></div><div class="sensor-grid">${s.metrics.map(m=>{const c=metricConfig(s,d,m),value=d.values[m.key],warning=d.online&&warnings.some(w=>w.key===m.key);return `<section class="sensor-card ${warning?'sensor-warning':''}"><div class="sensor-title"><span class="feature-icon ${warning?'orange':'blue'}">${icon(m.icon)}</span><span>${safe(m.name)}</span><span class="badge ${!d.online?'gray':warning?'orange':'green'}">${!d.online?'历史值':warning?'超出范围':'正常'}</span></div><div class="sensor-value">${safe(value)}<small>${safe(m.unit)}</small></div><p>正常范围 ${c.min}–${c.max} ${safe(m.unit)}</p>${trend(m,d)}<div class="chart-caption"><span>最近 8 次模拟采样</span><span>最新</span></div></section>`;}).join('')}</div><div class="detail-grid"><section class="panel"><div class="section-heading"><h2>设备信息</h2><span class="badge blue">PCB 采集终端</span></div><dl class="device-info"><div><dt>设备编号</dt><dd>${safe(d.id)}</dd></div><div><dt>所属场景</dt><dd>${safe(s.name)}</dd></div><div><dt>安装位置</dt><dd>${safe(d.location)}</dd></div><div><dt>采样周期</dt><dd>${d.sampleInterval} 秒</dd></div><div><dt>数据来源</dt><dd>JSON 模拟数据</dd></div><div><dt>连接状态</dt><dd>${d.online?'模拟在线':'模拟离线'}</dd></div></dl></section>${canEdit()?renderSettings(s,d):`<section class="panel read-only-panel"><span class="feature-icon green">${icon('eye')}</span><h2>专注数据，一目了然</h2><p>当前为只读视图。设备参数与告警阈值由本公司开发者维护。</p><div class="readonly-tags"><span>${icon('check')} 监测读数</span><span>${icon('check')} 采样趋势</span><span>${icon('check')} 设备状态</span></div></section>`}</div>${currentUser.role==='developer'?renderDiagnostics(s,d):''}`;}
 function renderSettings(s,d){return `<section class="panel"><div class="section-heading"><h2>设备配置</h2><span class="badge purple">${icon('settings')} 可编辑</span></div><form id="settings-form" class="settings-form"><div class="form-grid"><div><label for="device-name">设备名称</label><input id="device-name" name="deviceName" value="${safe(d.name)}" maxlength="40" required></div><div><label for="device-location">安装位置</label><input id="device-location" name="location" value="${safe(d.location)}" maxlength="80" required></div></div><label for="sample-interval">采样周期（秒）</label><input id="sample-interval" name="sampleInterval" type="number" min="1" max="3600" step="1" value="${d.sampleInterval}" required><div class="threshold-title">告警阈值 <span>最小值 / 最大值</span></div>${s.metrics.map(m=>{const c=metricConfig(s,d,m);return `<div class="threshold-row"><span>${safe(m.name)} <small>${safe(m.unit)}</small></span><input aria-label="${safe(m.name)}最小值" name="${m.key}-min" type="number" step="0.1" min="-100000" max="100000" value="${c.min}" required><span>至</span><input aria-label="${safe(m.name)}最大值" name="${m.key}-max" type="number" step="0.1" min="-100000" max="100000" value="${c.max}" required></div>`;}).join('')}<p class="error" id="settings-error" role="alert"></p><div class="settings-actions"><button class="primary" type="submit">保存配置</button><button class="secondary" type="button" id="reset-settings">恢复默认</button><button class="text-button" type="button" id="export-config">导出 JSON</button></div><p class="settings-note">修改仅保存在当前浏览器；导出 JSON 并替换 devices.json 可用于部署。不会下发到真实设备。</p></form></section>`;}
 function renderDiagnostics(s,d){const errors=d.online?alarms(s,d).map(m=>({type:d.values[m.key]>metricConfig(s,d,m).max?'SENSOR_THRESHOLD_HIGH':'SENSOR_THRESHOLD_LOW',level:'warning',message:`${m.name}超出配置范围`,source:`${m.key} / threshold check`})):d.diagnostics;return `<section class="panel diagnostics"><div class="section-heading"><h2>${icon('code')} 开发诊断</h2><span class="badge blue">仅开发人员可见</span></div><div class="diagnostic-summary"><span>设备协议 <strong>MQTT（预留）</strong></span><span>采集终端 <strong>${safe(d.id)}</strong></span><span>数据模式 <strong>模拟快照</strong></span></div>${errors.length?`<div class="table-wrap"><table><thead><tr><th>报错类型</th><th>级别</th><th>说明</th><th>来源</th></tr></thead><tbody>${errors.map(e=>`<tr><td><code>${safe(e.type)}</code></td><td><span class="badge orange">${safe(e.level)}</span></td><td>${safe(e.message)}</td><td>${safe(e.source)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="diagnostic-empty">'+icon('check')+' 当前设备无报错 · 错误类型：NONE</div>'}</section>`;}
-function bind(){
- document.querySelectorAll('[data-home]').forEach(b=>b.onclick=()=>{view='scenes';sceneId=null;deviceId=null;notice='';render();});
- document.querySelectorAll('[data-scene]').forEach(b=>b.onclick=()=>{sceneId=b.dataset.scene;deviceId=null;view='devices';notice='';render();});
- document.querySelectorAll('[data-device]').forEach(b=>b.onclick=()=>openDevice(b.dataset.device));
- const warnings=document.querySelector('#warning-devices');if(warnings)warnings.onclick=openWarnings;
- const back=document.querySelector('#back-devices');if(back)back.onclick=()=>{view='devices';notice='';render();};
- const logout=document.querySelector('#logout');if(logout)logout.onclick=()=>{sessionStorage.removeItem('workspace-user');currentUser=null;view='scenes';sceneId=null;deviceId=null;notice='已退出登录';render();};
- const form=document.querySelector('#login-form');if(form){form.onsubmit=login;document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>{document.querySelector('#username').value=b.dataset.demo;document.querySelector('#password').value='123456';});document.querySelector('#toggle-password').onclick=e=>{const p=document.querySelector('#password');p.type=p.type==='password'?'text':'password';e.currentTarget.setAttribute('aria-label',p.type==='password'?'显示密码':'隐藏密码');};}
- const settings=document.querySelector('#settings-form');if(settings){settings.onsubmit=saveSettings;document.querySelector('#reset-settings').onclick=()=>{if(!canEdit())return;const overrides=readStorage(storageKey,{});delete overrides[deviceId];try{localStorage.setItem(storageKey,JSON.stringify(overrides));notice='已恢复 JSON 中的默认配置';render();}catch{document.querySelector('#settings-error').textContent='浏览器无法保存配置，请检查存储设置。';}};document.querySelector('#export-config').onclick=exportConfig;}
-}
-async function readJson(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error('配置文件加载失败，请通过 HTTP 服务打开页面。');return r.json();}
-async function login(event){event.preventDefault();const button=event.currentTarget.querySelector('[type="submit"]');button.disabled=true;button.textContent='正在验证…';try{const name=document.querySelector('#username').value.trim(),password=document.querySelector('#password').value;const config=await readJson('./users.json');if(!Array.isArray(config.users))throw new Error('账号配置格式错误');users=config.users;const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password));const hash=Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('');const user=users.find(u=>u.username===name&&u.passwordHash===hash);if(!user)throw new Error('账号或密码不正确，请重试。');currentUser={...user,role:validRole(user.role)};sessionStorage.setItem('workspace-user',user.id);view='detail';notice='';render();}catch(error){document.querySelector('#login-error').textContent=error.message;button.disabled=false;button.innerHTML=`验证并查看设备 ${icon('arrow')}`;}}
 function parseSettings(form,s){const fields=new FormData(form),name=String(fields.get('deviceName')).trim(),location=String(fields.get('location')).trim(),sampleInterval=Number(fields.get('sampleInterval'));if(!name||!location)throw new Error('设备名称和安装位置不能为空。');if(!Number.isInteger(sampleInterval)||sampleInterval<1||sampleInterval>3600)throw new Error('采样周期应为 1–3600 秒的整数。');const thresholds={};for(const m of s.metrics){const min=Number(fields.get(`${m.key}-min`)),max=Number(fields.get(`${m.key}-max`));if(!Number.isFinite(min)||!Number.isFinite(max)||min>=max)throw new Error(`${m.name}最小值必须小于最大值。`);thresholds[m.key]={min,max};}return {name,location,sampleInterval,thresholds};}
 function saveSettings(event){event.preventDefault();if(!canEdit())return;try{const config=parseSettings(event.currentTarget,scene()),overrides=readStorage(storageKey,{});overrides[deviceId]=config;localStorage.setItem(storageKey,JSON.stringify(overrides));notice='设备配置已保存到当前浏览器，告警状态已按新阈值更新。';render();}catch(e){document.querySelector('#settings-error').textContent=e.message;}}
-function exportConfig(){if(!canEdit())return;const content={scenes,devices:devices.map(d=>effective(d))};const url=URL.createObjectURL(new Blob([JSON.stringify(content,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='devices.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-async function init(){app.innerHTML='<div class="loading">正在连接你的物联空间…</div>';try{const [accounts,config]=await Promise.all([readJson('./users.json'),readJson('./devices.json')]);if(!Array.isArray(accounts.users)||!Array.isArray(config.scenes)||!Array.isArray(config.devices))throw new Error('JSON 配置格式错误');users=accounts.users;scenes=config.scenes;devices=config.devices;const id=sessionStorage.getItem('workspace-user'),user=users.find(u=>u.id===id);if(user)currentUser={...user,role:validRole(user.role)};render();}catch(e){app.innerHTML=`<main class="load-error"><h1>暂时无法加载监测空间</h1><p>${safe(e.message)}</p><p>请检查 users.json 与 devices.json，或刷新后重试。</p><a class="primary" href="./">重新加载</a></main>`;}}
-init();
+function exportConfig(){if(!canEdit())return;const content={scenes,devices:devices.map(d=>d.companyId===currentUser.companyId?effective(d):d)};const url=URL.createObjectURL(new Blob([JSON.stringify(content,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='devices.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+
+let serialTimer=null, serialController=null, serialGeneration=0, serialPaused=false;
+let serialCursor=0, serialLines=[], serialDropped=false;
+let serialState={source:'mqtt',status:'connecting',error:'',host:'127.0.0.1',port:1883,topic:'rd-web/test/#',total:0};
+function renderSerialTest() {
+ return heading(testMode==='usb'?'LOCAL / USB MONITOR':'LOCAL / MQTT MONITOR',testMode==='usb'?'USB 测试':'本地联网测试',testMode==='usb'?'通过本机服务读取 USB 串口原始消息。':'通过本机 MQTT 服务接收 WiFi 设备消息。') +
+ `<section class="access-banner"><span class="feature-icon blue">${icon('device')}</span><div><strong id="stream-source-title">MQTT 设备消息接收</strong><p id="stream-source-info">正在读取本地接收配置…</p></div><span class="badge gray" id="serial-status" role="status">正在连接</span></section>
+ <div id="serial-error" class="offline-note" role="status" hidden></div>
+ <div class="serial-summary"><section class="panel"><span>累计接收</span><strong id="serial-total">0<small> 条</small></strong></section><section class="panel"><span>最近接收时间</span><strong id="serial-time">等待数据</strong></section></div>
+ <section class="panel serial-panel"><div class="section-heading"><h2>接收信息 <span>LIVE SERIAL DATA</span></h2><div class="serial-actions"><button type="button" class="secondary" id="pause-serial">${serialPaused?'继续显示':'暂停显示'}</button><button type="button" class="secondary" id="clear-serial">清空显示</button><button type="button" class="text-button" id="retry-serial">重新连接</button></div></div>
+ <div id="serial-log" class="serial-log" role="region" aria-label="设备接收信息" tabindex="0"></div>
+ <div class="panel-foot" id="serial-foot">仅显示实际接收内容，最多保留最近 500 条；不会向设备发送指令。</div></section>
+ <p class="settings-note">${testMode==='usb'?'请连接 USB 设备，并确认串口与波特率；接收服务可通过启动参数修改配置。':'先启动本地 MQTT Broker 和接收服务，再让设备连入同一 WiFi 上报。保留消息会明确标记；收到消息不代表设备当前仍在线。'}</p>`;
+}
+function stopSerialPolling() {
+ serialGeneration++;
+ clearTimeout(serialTimer);
+ serialTimer=null;
+ serialController?.abort();
+ serialController=null;
+}
+function updateSerialPanel() {
+ const log=document.querySelector('#serial-log');
+ if(!log)return;
+ const status=document.querySelector('#serial-status');
+ const [label,color]=serialPaused?['显示已暂停','orange']:serialState.status==='connected'?[serialState.source==='mqtt'?'已订阅 MQTT':'串口已连接','green']:['connecting','subscribing'].includes(serialState.status)?['正在连接 / 订阅','blue']:['连接异常','orange'];
+ document.querySelector('#stream-source-title').textContent=serialState.source==='mqtt'?'MQTT 设备消息接收':'USB 串口读取';
+ document.querySelector('#stream-source-info').textContent=serialState.source==='mqtt'?`Broker ${serialState.host}:${serialState.port} · 订阅 ${serialState.topic}`:`串口 ${serialState.device} · ${serialState.baudrate} baud`;
+ status.textContent=label;status.className=`badge ${color}`;
+ document.querySelector('#serial-total').textContent=`${serialState.total} 条`;
+ const last=serialLines.at(-1);
+ document.querySelector('#serial-time').textContent=last?new Date(last.time).toLocaleTimeString('zh-CN',{hour12:false}):'等待数据';
+ const error=document.querySelector('#serial-error');
+ error.hidden=!serialState.error;
+ error.textContent=serialState.error;
+ const follow=log.scrollHeight-log.scrollTop-log.clientHeight<70;
+ if(serialLines.length) {
+  log.innerHTML=serialLines.map(line=>`<div class="serial-line"><time>${safe(new Date(line.time).toLocaleTimeString('zh-CN',{hour12:false}))}</time><span>${line.topic?`<b class="mqtt-topic">${safe(line.topic)}${line.retained?' · 保留消息':''}</b>`:''}${safe(line.text)}</span></div>`).join('');
+ }else{
+  log.innerHTML=`<p class="serial-empty">${serialState.status==='connected'?'接收连接已建立，等待设备发送信息…':'等待接收服务连接与设备消息…'}</p>`;
+ }
+ if(follow)log.scrollTop=log.scrollHeight;
+ document.querySelector('#serial-foot').textContent=serialDropped?'部分较早数据已超出缓冲区，当前显示最近接收的信息。':'最多保留最近 500 条；暂停、清空仅影响网页显示，服务继续接收，不会向设备发送指令。';
+}
+function startSerialPolling() {
+ stopSerialPolling();
+ updateSerialPanel();
+ if(serialPaused||!['usb','mqtt'].includes(view))return;
+ const generation=serialGeneration;
+ async function poll() {
+  if(generation!==serialGeneration||!['usb','mqtt'].includes(view))return;
+  const controller=new AbortController();serialController=controller;
+  const timeout=setTimeout(()=>controller.abort(),5000);
+  try {
+   const response=await fetch(`./api/messages?source=${testMode}&after=${serialCursor}`,{cache:'no-store',signal:controller.signal});
+   if(!response.ok)throw new Error('本地接收源不可用。请运行 .venv/bin/python serial_server.py --source both，再通过本地预览地址登录管理员进入测试。');
+   const data=await response.json();
+   if(!Array.isArray(data.lines)||!Number.isFinite(data.total))throw new Error('接收服务返回的数据格式不正确。');
+   if(generation!==serialGeneration)return;
+   serialState=data;
+   if(data.total<serialCursor){serialCursor=0;serialLines=[];}else{
+    serialLines=serialLines.concat(data.lines).slice(-500);
+    serialCursor=data.total;
+   }
+   serialDropped=serialDropped||data.dropped;
+   if(data.status==='error')serialState.error=data.source==='mqtt'?`${data.error} 请检查本地 Broker 是否运行；服务会自动重试。`:`无法打开 ${data.device}：${data.error}。请检查设备连接、串口权限及是否被其他程序占用；服务会自动重试。`;
+  } catch(error) {
+   if(generation!==serialGeneration)return;
+   serialState={...serialState,status:'error',error:error.name==='AbortError'?'本地接收服务响应超时，正在重试。':error.message};
+  } finally {
+   clearTimeout(timeout);
+   if(generation===serialGeneration&&['usb','mqtt'].includes(view)&&!serialPaused){updateSerialPanel();serialTimer=setTimeout(poll,500);}
+  }
+ }
+ poll();
+}

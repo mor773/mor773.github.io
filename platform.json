@@ -1,0 +1,94 @@
+{
+  "chains": [
+    {
+      "id": "agriculture",
+      "name": "农牧链",
+      "icon": "environment",
+      "color": "green",
+      "description": "连接种植与养殖，让每一份生长有据可依。"
+    },
+    {
+      "id": "industry",
+      "name": "工业链",
+      "icon": "power",
+      "color": "blue",
+      "description": "从生产、维保到仓储，掌握设备全生命周期。"
+    }
+  ],
+  "categories": [
+    {
+      "id": "planting",
+      "chainId": "agriculture",
+      "name": "种植园",
+      "icon": "environment"
+    },
+    {
+      "id": "breeding",
+      "chainId": "agriculture",
+      "name": "养殖场",
+      "icon": "environment"
+    },
+    {
+      "id": "production",
+      "chainId": "industry",
+      "name": "生产",
+      "icon": "power"
+    },
+    {
+      "id": "maintenance",
+      "chainId": "industry",
+      "name": "维保",
+      "icon": "settings"
+    },
+    {
+      "id": "warehouse",
+      "chainId": "industry",
+      "name": "仓储",
+      "icon": "folder"
+    }
+  ],
+  "companies": [
+    {
+      "id": "company-a",
+      "name": "公司 A",
+      "description": "智慧种植 · 环境与土壤监测",
+      "categoryId": "planting",
+      "template": "content/companies/company-a.md"
+    },
+    {
+      "id": "company-b",
+      "name": "公司 B",
+      "description": "设施种植 · 温室运营监测",
+      "categoryId": "planting",
+      "template": "content/companies/company-b.md"
+    },
+    {
+      "id": "company-c",
+      "name": "牧源养殖",
+      "description": "养殖环境 · 温湿氨气监测",
+      "categoryId": "breeding",
+      "template": "content/companies/company-c.md"
+    },
+    {
+      "id": "company-d",
+      "name": "智造生产",
+      "description": "生产设备 · 电力状态监测",
+      "categoryId": "production",
+      "template": "content/companies/company-d.md"
+    },
+    {
+      "id": "company-e",
+      "name": "安维服务",
+      "description": "维保巡检 · 设备状态监测",
+      "categoryId": "maintenance",
+      "template": "content/companies/company-e.md"
+    },
+    {
+      "id": "company-f",
+      "name": "云仓物流",
+      "description": "仓储运营 · 用电安全监测",
+      "categoryId": "warehouse",
+      "template": "content/companies/company-f.md"
+    }
+  ]
+}

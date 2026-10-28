@@ -1,0 +1,227 @@
+/* Login, company routing and declarative Markdown workspaces. */
+let platform={chains:[],categories:[],companies:[],news:[]};
+let companyId=null,chainId=null,categoryId=null,companyTab='home',testMode='mqtt';
+let authMode='login',templateDraft=null,templates={},templateErrors={};
+const registeredKey='iot-registered-customers-v1',templateKey='iot-company-templates-v1';
+const isAdmin=()=>currentUser?.role==='admin';
+const company=()=>platform.companies.find(c=>c.id===companyId);
+const companyDevices=()=>devices.filter(d=>d.companyId===companyId && (isAdmin()||d.companyId===currentUser?.companyId));
+const warningDevices=()=>companyDevices().filter(d=>d.online&&alarms(scenes.find(s=>s.id===d.sceneId),effective(d)).length);
+function registeredUsers(){
+ const rows=readStorage(registeredKey,[]);
+ return Array.isArray(rows)?rows.filter(u=>u&&typeof u.username==='string'&&platform.companies.some(c=>c.id===u.companyId)&&!users.some(v=>v.username===u.username||v.id===u.id)).map(u=>({...u,role:'customer'})):[];
+}
+function allUsers(){return [...users,...registeredUsers()];}
+function normalizeUser(u){return {...u,role:validRole(u.role)};}
+function logo(){return `<span class="brand-mark">${icon('device')}</span><span class="brand-name">供应链物联网平台</span>`;}
+function heading(kicker,title,description,extra=''){return `<div class="page-heading"><div><div class="eyebrow">${kicker}</div><h1 tabindex="-1">${title}</h1><p>${description}</p></div>${extra}</div>`;}
+function navigate(next){view=next;notice='';templateDraft=null;render();window.scrollTo(0,0);}
+function openCompany(id){
+ const c=platform.companies.find(c=>c.id===id);
+ if(!c||(!isAdmin()&&id!==currentUser?.companyId))return;
+ companyId=id;categoryId=c.categoryId;chainId=platform.categories.find(x=>x.id===categoryId)?.chainId;companyTab='home';navigate('company');
+}
+function openDevice(id){
+ const d=companyDevices().find(d=>d.id===id);if(!d)return;
+ deviceId=d.id;sceneId=d.sceneId;navigate('detail');
+}
+function openAdminDevice(id){
+ if(!isAdmin())return;const d=devices.find(d=>d.id===id);
+ if(!d||!platform.companies.some(c=>c.id===d.companyId))return;
+ openCompany(d.companyId);openDevice(d.id);
+}
+function openWarnings(){const list=warningDevices();if(list.length===1)return openDevice(list[0].id);navigate('alerts');}
+function parseTemplate(raw){
+ const blocks=[...raw.matchAll(/```dashboard\s*\n([\s\S]*?)```/g)];
+ if(blocks.length!==1)throw new Error('需要且只能有一个 dashboard JSON 配置块。');
+ let cfg;try{cfg=JSON.parse(blocks[0][1]);}catch{throw new Error('dashboard 配置必须是有效的 JSON。');}
+ if(!cfg||Array.isArray(cfg)||typeof cfg!=='object')throw new Error('dashboard 必须是配置对象。');
+ if(typeof cfg.title!=='string'||!cfg.title.trim()||typeof cfg.subtitle!=='string')throw new Error('请填写 title 和 subtitle 字符串。');
+ if(!['green','blue','purple','orange'].includes(cfg.accent))throw new Error('accent 支持 green、blue、purple、orange。');
+ if(!Array.isArray(cfg.widgets)||cfg.widgets.some(w=>!['total','online','alerts'].includes(w))||new Set(cfg.widgets).size!==cfg.widgets.length)throw new Error('widgets 仅支持不重复的 total、online、alerts。');
+ if(typeof cfg.showDevices!=='boolean')throw new Error('showDevices 必须为 true 或 false。');
+ return {config:cfg,body:raw.replace(blocks[0][0],'').trim()};
+}
+function markdown(raw){
+ const inline=t=>safe(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+ let list=false,html='';
+ for(const line of raw.split('\n')){
+  if(line.startsWith('- ')){if(!list){html+='<ul>';list=true;}html+=`<li>${inline(line.slice(2))}</li>`;continue;}
+  if(list){html+='</ul>';list=false;}
+  const h=line.match(/^(#{1,3})\s+(.+)$/);
+  if(h){const level=h[1].length+1;html+=`<h${level}>${inline(h[2])}</h${level}>`;}
+  else if(line.trim())html+=`<p>${inline(line)}</p>`;
+ }
+ return html+(list?'</ul>':'');
+}
+function rawTemplate(id){const saved=readStorage(templateKey,{});return typeof saved[id]==='string'?saved[id]:templates[id];}
+function workspaceTemplate(){const raw=rawTemplate(companyId);if(typeof raw!=='string')throw new Error(templateErrors[companyId]||'未找到公司 Markdown 配置。');return parseTemplate(raw);}
+function accountPage(){
+ const register=authMode==='register';
+ return `<main class="login portal-login"><section class="login-story"><a class="brand" href="./">${logo()}</a><div class="story-body"><div class="eyebrow">CONNECT EVERY LINK. SEE EVERY DETAIL.</div><h1>连接每一环，<br>看见每一步<span>。</span></h1><p>从田间生长，到工业运转。<br>在同一个平台，掌握属于你的设备与数据。</p><div class="supply-preview"><div class="supply-line"><span class="feature-icon green">${icon('environment')}</span><div><strong>农牧链</strong><small>种植园 / 养殖场</small></div><span class="badge green">持续感知</span></div><div class="supply-line"><span class="feature-icon blue">${icon('power')}</span><div><strong>工业链</strong><small>生产 / 维保 / 仓储</small></div><span class="badge blue">协同运行</span></div><div class="supply-preview-foot">${icon('shield')} 每家公司，拥有自己的监测空间。</div></div></div><footer>物联空间 · 供应链物联网平台</footer></section><section class="login-panel"><div class="login-form-wrap"><div class="auth-switch"><button data-auth="login" class="${!register?'active':''}">登录</button><button data-auth="register" class="${register?'active':''}">注册</button></div><span class="eyebrow blue-text">${register?'CREATE YOUR ACCOUNT':'WELCOME BACK'}</span><h2>${register?'创建客户账号':'欢迎回来'}</h2><p class="muted">${register?'加入公司，开启你的设备监测空间。':'登录后，自动进入与你身份对应的空间。'}</p><form id="auth-form">${register?'<label for="display-name">姓名</label><input id="display-name" name="displayName" placeholder="请输入姓名" maxlength="30" required>':''}<label for="username">账号</label><input id="username" name="username" placeholder="请输入账号" autocomplete="username" minlength="3" maxlength="40" required><label for="password">密码</label><div class="password-wrap"><input id="password" name="password" type="password" placeholder="${register?'至少 6 位密码':'请输入密码'}" autocomplete="${register?'new-password':'current-password'}" ${register?'minlength="6"':''} maxlength="100" required><button type="button" id="toggle-password" aria-label="显示密码">${icon('eye')}</button></div>${register?`<label for="register-company">所属公司</label><select id="register-company" name="companyId" required>${platform.companies.map(c=>`<option value="${safe(c.id)}">${safe(c.name)}</option>`).join('')}</select><label for="confirm-password">确认密码</label><input id="confirm-password" type="password" autocomplete="new-password" placeholder="请再次输入密码" required>`:''}<p id="auth-error" class="error" role="alert">${safe(notice)}</p><button class="primary login-submit" type="submit">${register?'注册并进入公司':'登录平台'} ${icon('arrow')}</button></form>${register?'<p class="settings-note">注册默认身份为客户。开发者由管理员在 JSON 中分配；平台管理员不开放注册。</p>':`<div class="demo-accounts"><div class="demo-title">体验账号 <span>统一密码：123456</span></div><div class="demo-buttons">${[['customer','客户'],['developer','客户开发者'],['admin','平台管理员']].map(([r,n])=>`<button type="button" data-demo="${r}">${n}</button>`).join('')}</div><small>公司 A：customer / developer · 公司 B：customer_b</small></div>`}<p class="login-disclaimer">静态演示 · 注册账号仅保存于当前浏览器</p></div></section></main>`;
+}
+function dashboardCards(){
+ const list=companyDevices(),warnings=warningDevices();
+ const data={total:['device','设备总数',list.length,'公司所属监测设备','blue'],online:['check','在线设备',list.filter(d=>d.online).length,'当前模拟设备状态','green'],alerts:['bell','预警设备',warnings.length,warnings.length===1?'点击直达异常设备 →':'查看预警设备列表 →','orange']};
+ const cfg=workspaceTemplate().config;
+ return `<div class="stats-grid company-stats">${cfg.widgets.map(w=>{const [i,label,n,desc,color]=data[w];return `<${w==='alerts'?'button':'div'} class="stat-card ${w==='alerts'?'stat-action':''}" ${w==='alerts'?'type="button" id="warning-devices" aria-label="查看预警设备"':''}><span class="feature-icon ${color}">${icon(i)}</span><span class="stat-label">${label}</span><strong>${n}<small>台</small></strong><p>${desc}</p></${w==='alerts'?'button':'div'}>`;}).join('')}</div>`;
+}
+function deviceCards(list){return `<div class="device-grid">${list.map(raw=>{const d=effective(raw),s=scenes.find(s=>s.id===d.sceneId),[label,color]=status(s,d);return `<button class="device-card" data-device="${safe(d.id)}"><div class="card-top"><span class="project-symbol ${s.color}">${icon('device')}</span><span class="badge ${color}"><i class="dot"></i>${label}</span></div><span class="device-code">${safe(d.id)}</span><h2>${safe(d.name)}</h2><p>${safe(d.location)}</p><div class="device-sensors">${s.metrics.map(m=>`<span class="${alarms(s,d).some(a=>a.key===m.key)&&d.online?'warning-metric':''}">${safe(m.name)}</span>`).join('')}</div><div class="device-readings">${s.metrics.map(m=>`<div class="${d.online&&alarms(s,d).some(a=>a.key===m.key)?'reading-alert':''}"><small>${safe(m.name)}</small><strong>${Number.isFinite(d.values[m.key])?safe(d.values[m.key]):'—'}<em>${safe(m.unit)}</em></strong></div>`).join('')}</div>${!d.online?'<span class="last-reading-note">离线 · 最后一次模拟采样</span>':''}<div class="device-action"><span>查看传感器数据</span>${icon('arrow')}</div></button>`;}).join('')}</div>`;}
+function workspaceSparkline(metric,d){
+ const values=(d.history?.[metric.key]||[]).filter(Number.isFinite);
+ if(!values.length)return '<div class="spark-empty">暂无历史采样</div>';
+ const lo=Math.min(...values),range=Math.max(...values)-lo||1;
+ const points=values.map((v,i)=>`${8+i*304/Math.max(1,values.length-1)},${64-(v-lo)/range*48}`).join(' ');
+ return `<svg viewBox="0 0 320 80" role="img" aria-label="${safe(metric.name)}最近 ${values.length} 次模拟采样"><path d="M8 20H312M8 45H312M8 70H312" stroke="currentColor" opacity=".08"/><polygon points="8,78 ${points} 312,78" fill="currentColor" opacity=".07"/><polyline points="${points}" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+let overviewDeviceId=null;
+function companyInsights(){
+ const list=companyDevices(),warnings=warningDevices(),offline=list.filter(d=>!d.online),healthy=list.length-warnings.length-offline.length;
+ const raw=list.find(d=>d.id===overviewDeviceId)||list.find(d=>d.online)||list[0],d=raw?effective(raw):null,s=d?scenes.find(s=>s.id===d.sceneId):null;
+ const total=list.length,green=total?healthy/total*100:0,amber=total?(healthy+warnings.length)/total*100:0;
+ return `<div class="insight-grid"><section class="insight-panel sampling-panel"><div class="insight-heading"><div><span class="dashboard-kicker">SENSOR OVERVIEW</span><h2>采样数据概览</h2></div>${d?`<label class="overview-select"><span class="sr-only">概览设备</span><select id="overview-device">${list.map(row=>`<option value="${safe(row.id)}" ${row.id===d.id?'selected':''}>${safe(effective(row).name)}</option>`).join('')}</select></label>`:''}</div>${d?`<div class="sampling-context"><span>${safe(d.location)}</span><span>${d.online?'模拟采样快照':'离线 · 最后一次模拟采样'}</span></div><div class="sampling-grid">${s.metrics.map(m=>{const warning=d.online&&alarms(s,d).some(a=>a.key===m.key);return `<div class="sampling-metric ${warning?'is-alert':''}"><span>${icon(m.icon)} ${safe(m.name)}</span><strong>${Number.isFinite(d.values[m.key])?safe(d.values[m.key]):'—'}<small>${safe(m.unit)}</small></strong>${workspaceSparkline(m,d)}<small>最近 ${(d.history?.[m.key]||[]).filter(Number.isFinite).length} 次模拟采样</small></div>`;}).join('')}</div><button class="dashboard-text-link" data-device="${safe(d.id)}">查看设备详情 ${icon('arrow')}</button>`:'<p class="dashboard-empty">尚未配置监测设备</p>'}</section><section class="insight-panel health-panel"><div class="insight-heading"><div><span class="dashboard-kicker">DEVICE STATUS</span><h2>设备状态分布</h2></div>${icon('device')}</div><div class="health-content"><div class="health-ring" style="--healthy:${green}%;--warning:${amber}%" role="img" aria-label="${healthy} 台正常，${warnings.length} 台预警，${offline.length} 台离线"><div><strong>${total}</strong><span>设备总数</span></div></div><div class="health-legend">${[['normal','运行正常',healthy],['warn','在线预警',warnings.length],['off','设备离线',offline.length]].map(([cls,label,n])=>`<div><span><i class="${cls}"></i>${label}</span><strong>${n}<small> 台</small></strong></div>`).join('')}</div></div><p class="health-foot">${total?`在线率 ${Math.round((total-offline.length)/total*100)}% · 根据当前模拟设备状态统计`:'暂无设备数据'}</p></section></div>`;
+}
+function companyAttention(){
+ const list=companyDevices(),attention=list.filter(d=>!d.online||alarms(scenes.find(s=>s.id===d.sceneId),effective(d)).length);
+ const articles=visibleNews().slice(0,2);
+ return `<div class="dashboard-bottom"><section class="insight-panel attention-panel"><div class="insight-heading"><div><span class="dashboard-kicker">NEEDS ATTENTION</span><h2>需要关注 <small>${attention.length}</small></h2></div>${icon('bell')}</div>${attention.map(raw=>{const d=effective(raw),s=scenes.find(s=>s.id===d.sceneId);return `<button class="attention-row" data-device="${safe(d.id)}"><span class="attention-symbol ${d.online?'warn':'off'}">${icon(d.online?'bell':'device')}</span><span><strong>${safe(d.name)}</strong><small>${d.online?alarms(s,d).map(m=>safe(m.name)+'超出范围').join('、'):'设备离线 · 请检查供电与网络'}</small></span>${icon('arrow')}</button>`;}).join('')||'<p class="dashboard-empty">'+icon('check')+' 当前没有预警或离线设备</p>'}</section><section class="insight-panel dashboard-news"><div class="insight-heading"><div><span class="dashboard-kicker">LATEST NEWS</span><h2>公司与平台动态</h2></div><button class="dashboard-text-link" data-tab="news">全部新闻 ${icon('arrow')}</button></div>${articles.map(a=>`<a class="dashboard-news-item" href="#article/${encodeURIComponent(a.id)}" data-article="${safe(a.id)}"><time>${safe(a.date)}</time><strong>${safe(a.title)}</strong>${icon('arrow')}</a>`).join('')||'<p class="dashboard-empty">暂无最新动态</p>'}</section></div>`;
+}
+function consoleAlertPanel(){
+ const rows=companyDevices().filter(d=>!d.online||alarms(scenes.find(s=>s.id===d.sceneId),effective(d)).length);
+ return `<section class="insight-panel console-alerts" id="console-alerts"><div class="insight-heading"><h2>告警与离线</h2><span class="console-count">${rows.length} 项待关注</span></div>${rows.map(raw=>{const d=effective(raw),s=scenes.find(s=>s.id===d.sceneId);return `<button class="console-alert-row" data-device="${safe(d.id)}"><span class="console-alert-icon ${d.online?'warning':'offline'}">${icon(d.online?'bell':'device')}</span><span><strong>${d.online?alarms(s,d).map(m=>safe(m.name)+'超出范围').join('、'):'设备离线'}</strong><small>${safe(d.name)} · ${safe(d.id)}</small><em>${safe(d.location)}</em></span>${icon('arrow')}</button>`;}).join('')||'<p class="dashboard-empty">'+icon('check')+' 当前设备无异常</p>'}<p class="console-panel-note">点击异常信息，直接查看对应设备</p></section>`;
+}
+function consoleDeviceRows(query=''){
+ const rows=companyDevices().filter(raw=>{const d=effective(raw);return [d.name,d.id,d.location].join(' ').toLowerCase().includes(query.trim().toLowerCase());});
+ return rows.map(raw=>{const d=effective(raw),s=scenes.find(s=>s.id===d.sceneId),[label,color]=status(s,d);return `<tr><td><button data-device="${safe(d.id)}">${icon('device')} ${safe(d.name)}</button></td><td><code>${safe(d.id)}</code></td><td><span class="badge ${color}"><i></i>${label}</span></td><td>${safe(d.location)}</td><td><button class="dashboard-text-link" data-device="${safe(d.id)}">查看 ${icon('arrow')}</button></td></tr>`;}).join('')||'<tr><td colspan="5" class="console-no-results">未找到匹配设备</td></tr>';
+}
+function consoleDeviceArea(){
+ const list=companyDevices();
+ return `<div class="console-device-area" id="dashboard-devices"><section class="insight-panel console-map"><div class="insight-heading"><h2>采集点分布</h2><span class="console-count">${list.length} 个设备</span></div><div class="site-schematic"><svg viewBox="0 0 600 300" preserveAspectRatio="none" aria-hidden="true"><defs><pattern id="site-grid" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(-25)"><path d="M40 0H0V40" fill="none" stroke="#d7e6ed" stroke-width="1"/></pattern></defs><rect width="600" height="300" fill="#eef5f7"/><rect width="600" height="300" fill="url(#site-grid)"/><path d="M-20 240 150 180 250 190 400 100 640 20" stroke="#c6e9f5" stroke-width="38" fill="none"/><path d="M-20 100 250 300M200-30 600 260M0 250 440 0" stroke="#fff" stroke-width="13"/><path d="m65 72 78-35 63 48-78 35Z" fill="#c6e4d7" stroke="#b3d7c9"/><path d="m343 199 65-32 83 59-65 32Z" fill="#d2dfea" stroke="#bfcede"/><path d="m360 30 72-20 51 40-72 20Z" fill="#d5e8d3" stroke="#b9d4b6"/></svg>${list.map((d,i)=>{const [label,color]=status(scenes.find(s=>s.id===d.sceneId),effective(d));return `<button class="site-pin ${color}" style="left:${22+(i%3)*27}%;top:${29+(Math.floor(i/3)%3)*22+(i%2)*26}%" data-device="${safe(d.id)}" aria-label="${safe(d.name)}，${label}，查看详情">${icon('device')}<span>${safe(effective(d).name)}</span></button>`;}).join('')}<span class="site-map-label">采集点布局示意 · 非地理坐标</span></div><div class="site-legend"><span><i></i>正常</span><span><i></i>预警</span><span><i></i>离线</span></div></section><section class="insight-panel console-device-table"><div class="insight-heading"><h2>设备列表</h2><label class="table-search">${icon('eye')}<input type="search" id="console-device-search" aria-label="搜索设备" placeholder="搜索名称 / ID / 位置"></label></div><div class="table-wrap"><table><thead><tr><th>设备名称</th><th>设备 ID</th><th>状态</th><th>位置</th><th>操作</th></tr></thead><tbody id="console-device-rows">${consoleDeviceRows()}</tbody></table></div><div class="console-table-footer"><span>仅显示 ${safe(company()?.name)} 的设备</span><span>共 ${list.length} 台</span></div></section></div>`;
+}
+function consoleQuickActions(){return `<section class="insight-panel console-quick"><div class="insight-heading"><h2>快捷操作</h2></div><div>${[['devices','device','查看设备'],['monitor','grid','数据监测'],['alerts','bell','查看告警']].map(([section,i,text])=>`<button data-console-section="${section}"><span>${icon(i)}</span>${text}</button>`).join('')}<button data-tab="news"><span>${icon('chat')}</span>公司新闻</button></div><p>${icon('shield')} ${safe(company()?.name)} · ${safe(roles[currentUser.role].label)}工作空间</p></section>`;}
+function customerConsoleHome(t){
+ const list=companyDevices(),news=visibleNews().slice(0,2);
+ return `<div class="company-dashboard cockpit-dashboard"><div class="console-top-grid"><section class="console-welcome"><div><span>${safe(platform.categories.find(c=>c.id===company()?.categoryId)?.name||'公司空间')} · 运营概览</span><h1>你好，${safe(currentUser.name)}</h1><p>${safe(t.config.subtitle)}</p></div>${dashboardCards()}<div class="console-hero-landscape" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div></section>${consoleQuickActions()}</div><div class="console-analytics" id="console-monitor">${companyInsights()}${consoleAlertPanel()}</div>${t.config.showDevices?consoleDeviceArea():''}<div class="console-bottom-grid"><section class="insight-panel"><div class="insight-heading"><h2>平台与公司动态</h2><button class="dashboard-text-link" data-tab="news">全部新闻 ${icon('arrow')}</button></div>${news.map(a=>`<a class="dashboard-news-item" href="#article/${encodeURIComponent(a.id)}" data-article="${safe(a.id)}"><time>${safe(a.date)}</time><strong>${safe(a.title)}</strong>${icon('arrow')}</a>`).join('')||'<p class="dashboard-empty">暂无新闻</p>'}</section><section class="insight-panel console-notes">${markdown(t.body)}</section></div><p class="console-data-note">${icon('help')} 当前读数、历史曲线及在线状态来自公司 JSON 模拟数据。</p></div>`;
+}
+function companyHome(){
+ try{const t=workspaceTemplate();if(!isAdmin())return customerConsoleHome(t);const list=companyDevices(),warningCount=warningDevices().length,online=list.filter(d=>d.online).length;return `<div class="company-dashboard"><section class="dashboard-welcome accent-${t.config.accent}"><div class="welcome-copy"><span class="welcome-eyebrow">${safe(platform.categories.find(c=>c.id===company()?.categoryId)?.name||'公司空间')} / 设备监测工作台</span><h1>${safe(company()?.name)} · 设备管理</h1><p>查看公司设备、定位异常，统一维护监测页面配置。</p><div class="welcome-actions">${t.config.showDevices?'<button data-scroll-devices>查看公司设备 '+icon('arrow')+'</button>':''}${isAdmin()?'<button class="welcome-outline" data-route="template">'+icon('code')+' 配置页面</button>':'<span>'+icon('shield')+' '+safe(roles[currentUser.role].label)+'专属工作空间</span>'}</div></div><div class="welcome-status"><div class="welcome-radar">${icon('device')}<i></i><i></i></div><div><span>运行概况</span><strong>${warningCount?'有 '+warningCount+' 台设备需要关注':online<list.length?'有离线设备待检查':list.length?'在线设备运行正常':'等待添加监测设备'}</strong><small>${online} 台在线 / ${list.length} 台设备 · 模拟快照</small></div></div></section>`+dashboardCards()+companyInsights()+`${t.config.showDevices?'<div class="section-heading dashboard-devices-heading" id="dashboard-devices"><div><span class="dashboard-kicker">COMPANY DEVICES</span><h2>公司设备</h2></div><span class="device-count">'+list.length+' 台设备 · 点击查看详情</span></div>'+deviceCards(list):''}`+companyAttention()+`<section class="panel markdown-panel dashboard-notes">${markdown(t.body)}</section></div>`;}catch(e){return heading('COMPANY / CONFIGURATION',safe(company()?.name||'公司空间'),'公司页面配置暂不可用。')+`<div class="offline-note">${safe(e.message)}</div>${isAdmin()?'<button class="primary" data-route="template">修复 Markdown 配置</button>':''}`;}
+}
+function newsPage(){return newsListPage();}
+function profilePage(){return heading('ACCOUNT / PROFILE','我的','查看账号身份与所属公司。')+`<section class="panel profile-card"><span class="profile-avatar">${safe(currentUser.name?.slice(0,1)||'用')}</span><h2>${safe(currentUser.name)}</h2><span class="badge ${roles[currentUser.role].color}">${roles[currentUser.role].label}</span><dl class="device-info">${[['姓名',currentUser.name],['账号',currentUser.username],['公司',isAdmin()?'平台管理员（跨公司管理）':platform.companies.find(c=>c.id===currentUser.companyId)?.name||'未分配'],['设备数',isAdmin()?devices.length:companyDevices().length],['身份',roles[currentUser.role].label]].map(([k,v])=>`<div><dt>${k}</dt><dd>${safe(v)}</dd></div>`).join('')}</dl><button class="secondary" id="profile-logout">退出登录 ${icon('logout')}</button></section>`;}
+function navigationCard({title,description,iconName,color='blue',attr,meta=''}){return `<button class="portal-card" ${attr}><span class="portal-card-icon ${color}">${icon(iconName)}</span><span class="portal-card-body"><strong>${safe(title)}</strong><span>${safe(description)}</span><small>${safe(meta)}</small></span><span class="portal-card-arrow">${icon('arrow')}</span></button>`;}
+function platformHealth(list=devices){
+ const offline=list.filter(d=>!d.online).length;
+ const warning=list.filter(d=>d.online&&alarms(scenes.find(s=>s.id===d.sceneId),effective(d)).length).length;
+ return {total:list.length,online:list.length-offline,offline,warning,normal:list.length-offline-warning};
+}
+function platformPage(){
+ const h=platformHealth(),attention=devices.filter(d=>!d.online||alarms(scenes.find(s=>s.id===d.sceneId),effective(d)).length);
+ return `<div class="admin-dashboard"><section class="admin-hero"><div><span class="admin-kicker">PLATFORM / OPERATIONS</span><h1>平台管理总览</h1><p>供应链物联网平台</p><div class="admin-hero-tags"><span>${icon('shield')} 跨公司管理</span><span>${platform.chains.length} 条产业链 · ${platform.categories.length} 个业务场景</span></div></div><div class="admin-network" aria-hidden="true"><span>${icon('grid')}</span><i>${icon('environment')}</i><i>${icon('power')}</i><i>${icon('device')}</i></div></section><div class="admin-metrics">${[['users','接入公司',platform.companies.length,'家','按产业与场景独立管理','blue'],['device','设备总数',h.total,'台',h.normal+' 台正常运行','purple'],['check','在线设备',h.online,'台',(h.total?Math.round(h.online/h.total*100):0)+'% 在线率','green'],['bell','待关注设备',attention.length,'台',h.warning+' 台预警 · '+h.offline+' 台离线','orange']].map(([i,label,n,unit,note,color])=>`<section class="admin-metric ${color}"><span class="feature-icon ${color}">${icon(i)}</span><span>${label}</span><strong>${n}<small>${unit}</small></strong><p>${note}</p></section>`).join('')}</div><div class="admin-section-title"><div><span class="admin-kicker">INDUSTRY SPACES</span><h2>产业工作空间</h2></div><button class="secondary" data-route="tests">${icon('code')} 设备接入测试</button></div><div class="admin-industries">${platform.chains.map(c=>{const categories=platform.categories.filter(x=>x.chainId===c.id),companies=platform.companies.filter(x=>categories.some(k=>k.id===x.categoryId)),rows=devices.filter(d=>companies.some(k=>k.id===d.companyId)),health=platformHealth(rows);return `<button class="admin-industry ${safe(c.color)}" data-chain="${safe(c.id)}"><div class="admin-industry-top"><span class="feature-icon ${safe(c.color)}">${icon(c.icon)}</span><span>${companies.length} 家公司 / ${rows.length} 台设备</span>${icon('arrow')}</div><h3>${safe(c.name)}</h3><p>${safe(c.description)}</p><div class="admin-category-tags">${categories.map(k=>`<span>${safe(k.name)}</span>`).join('')}</div><div class="admin-status-track" aria-hidden="true"><i style="width:${rows.length?health.normal/rows.length*100:0}%"></i><i style="width:${rows.length?health.warning/rows.length*100:0}%"></i><i style="width:${rows.length?health.offline/rows.length*100:0}%"></i></div><small>正常 ${health.normal} · 预警 ${health.warning} · 离线 ${health.offline}</small></button>`;}).join('')}</div><div class="admin-management-grid"><section class="admin-panel"><div class="admin-section-title"><h2>公司管理</h2><span>${platform.companies.length} 家公司</span></div><div class="table-wrap"><table class="admin-company-table"><thead><tr><th>公司 / 场景</th><th>设备</th><th>运行状态</th><th>管理</th></tr></thead><tbody>${platform.companies.map(c=>{const h=platformHealth(devices.filter(d=>d.companyId===c.id));return `<tr><td><button data-company="${safe(c.id)}">${safe(c.name)}</button><small>${safe(platform.categories.find(k=>k.id===c.categoryId)?.name||'未分类')}</small></td><td>${h.total} 台</td><td><span class="admin-table-state ${h.warning||h.offline?'attention':'healthy'}">${h.warning||h.offline?h.warning+' 预警 / '+h.offline+' 离线':'运行正常'}</span></td><td><button class="dashboard-text-link" data-company="${safe(c.id)}">管理 ${icon('arrow')}</button></td></tr>`;}).join('')}</tbody></table></div></section><section class="admin-panel admin-attention"><div class="admin-section-title"><h2>待关注设备</h2><span>${attention.length} 台</span></div>${attention.map(raw=>{const d=effective(raw),c=platform.companies.find(c=>c.id===d.companyId);return `<button class="admin-alert" data-admin-device="${safe(d.id)}"><span class="feature-icon ${d.online?'orange':'blue'}">${icon(d.online?'bell':'device')}</span><span><strong>${safe(d.name)}</strong><small>${safe(c?.name||'未分配公司')} · ${d.online?'指标超出范围':'设备离线'}</small></span>${icon('arrow')}</button>`;}).join('')||'<p class="dashboard-empty">当前设备无异常</p>'}</section></div><p class="admin-data-note">统计来自当前 JSON 演示数据；点击异常设备可直接查看详情。</p></div>`;
+}
+
+function chainPage(){const c=platform.chains.find(c=>c.id===chainId);return heading('SUPPLY CHAIN / CATEGORIES',safe(c?.name),'选择业务场景，进入公司管理。','<button class="secondary" data-route="platform">返回平台</button>')+`<div class="portal-grid">${platform.categories.filter(x=>x.chainId===chainId).map(x=>navigationCard({title:x.name,description:'查看所属公司及其设备工作台',iconName:x.icon,color:c?.color,attr:`data-category="${x.id}"`,meta:platform.companies.filter(v=>v.categoryId===x.id).length+' 家公司'})).join('')}</div>`;}
+function companiesPage(){const category=platform.categories.find(c=>c.id===categoryId);return heading('SCENARIO / COMPANIES',safe(category?.name),'选择公司，进入专属监测页面。','<button class="secondary" data-route="chain">返回产业链</button>')+`<div class="portal-grid">${platform.companies.filter(c=>c.categoryId===categoryId).map(c=>navigationCard({title:c.name,description:c.description,iconName:'users',color:'green',attr:`data-company="${c.id}"`,meta:devices.filter(d=>d.companyId===c.id).length+' 台设备 · Markdown 配置页面'})).join('')}</div>`;}
+function testsPage(){return heading('PLATFORM / TESTING','测试','USB 采集与本地联网测试独立于公司业务。','<button class="secondary" data-route="platform">返回平台</button>')+`<div class="portal-grid">${navigationCard({title:'USB 测试',description:'按行显示本机串口接收到的原始信息。',iconName:'device',attr:'data-route="usb"',meta:'/dev/ttyUSB0 · 9600 baud'})}${navigationCard({title:'本地联网测试',description:'订阅本机 MQTT Broker，接收 WiFi 设备消息。',iconName:'code',color:'green',attr:'data-route="mqtt"',meta:'MQTT · 1883 · rd-web/test/#'})}</div><p class="settings-note">测试需通过本地 Python 接收服务打开。GitHub Pages 仅提供静态公司页面，不会模拟测试连接成功。</p>`;}
+function templatePage(){const raw=templateDraft??rawTemplate(companyId)??'';return heading('ADMIN / MARKDOWN CONFIGURATION','公司页面配置',`${safe(company()?.name)} · 编辑 Markdown，自动生成首页统计与设备布局。`,'<button class="secondary" data-route="company">返回公司</button>')+`<section class="panel template-panel"><div class="section-heading"><h2>Markdown 页面源文件</h2><span class="muted small">${safe(company()?.template)}</span></div><label class="sr-only" for="template-editor">Markdown 配置</label><textarea id="template-editor" spellcheck="false">${safe(raw)}</textarea><p id="template-error" class="error" role="alert"></p><div class="template-actions"><button class="primary" id="save-template">保存并生成首页</button><button class="secondary" id="preview-template">预览</button><button class="secondary" id="download-template">导出 .md</button><button class="text-button" id="reset-template">恢复文件配置</button></div><p class="settings-note">保存仅影响当前浏览器；导出并替换上方 .md 文件后，重新部署可让其他浏览器读取。</p></section><section class="panel markdown-panel" id="template-preview"><p class="muted">点击预览检查配置和正文。</p></section>`;}
+function renderAlerts(){const list=warningDevices();return heading('COMPANY / ALERTS','预警设备',`${safe(company()?.name)} · ${list.length} 台设备需要关注`,'<button class="secondary" data-route="company">返回公司首页</button>')+(list.length?deviceCards(list):'<section class="panel read-only-panel"><span class="feature-icon green">'+icon('check')+'</span><h2>当前没有预警设备</h2><p>在线设备读数均在配置范围内。</p></section>');}
+function render(){
+ stopSerialPolling();
+ if(!currentUser){app.innerHTML=authPage();bindAuth();bindExperience();return;}
+ if(!isAdmin()){
+  companyId=currentUser.companyId;
+  if(!company()){notice='账号尚未分配有效公司，请联系平台管理员修改 users.json。';view='unassigned';}
+  else if(!['company','detail','alerts','profile','article'].includes(view))view='company';
+ }
+ if(view==='detail'&&!companyDevices().some(d=>d.id===deviceId)){view='company';notice='设备不属于当前公司，已返回公司首页。';}
+ const r=roles[currentUser.role],c=company();
+ const labels={platform:'供应链物联网平台',chain:platform.chains.find(x=>x.id===chainId)?.name,companies:platform.categories.find(x=>x.id===categoryId)?.name,company:c?.name,detail:effective(device()||{}).name,alerts:'预警设备',profile:'我的',template:'页面配置',tests:'测试',usb:'USB 测试',mqtt:'本地联网测试',news:'新闻',article:'文章',unassigned:'公司待分配'};
+ const adminNav=[['platform','grid','平台总览'],['tests','code','测试'],['news','chat','新闻'],['profile','users','我的']];
+ const companyNav=[['home','grid','首页'],['news','chat','新闻'],['profile','users','我的']];
+ const consoleNav=[['overview','grid','概览'],['devices','device','设备管理'],['monitor','task','数据监测'],['alerts','bell','告警中心']];
+ const nav=isAdmin()?adminNav.map(([v,i,t])=>`<button class="nav-item ${view===v?'active':''}" data-route="${v}" aria-label="${t}" title="${t}">${icon(i)}<span>${t}</span></button>`).join(''):consoleNav.map(([section,i,t])=>`<button class="nav-item ${view==='company'&&companyTab==='home'&&section==='overview'?'active':''}" data-console-section="${section}">${icon(i)}<span>${t}</span></button>`).join('')+companyNav.filter(([v])=>v!=='home').map(([v,i,t])=>`<button class="nav-item ${(v==='profile'?view==='profile':view==='company'&&companyTab===v)?'active':''}" data-tab="${v}" aria-label="${t}" title="${t}">${icon(i)}<span>${t}</span></button>`).join('');
+ let body;
+ if(view==='platform')body=platformPage();else if(view==='chain')body=chainPage();else if(view==='companies')body=companiesPage();else if(view==='tests')body=testsPage();else if(view==='news')body=newsListPage();else if(view==='article')body=articlePage();else if(view==='profile')body=profilePage();else if(view==='template')body=templatePage();else if(['usb','mqtt'].includes(view))body=renderSerialTest();else if(view==='detail')body=renderDetail();else if(view==='alerts')body=renderAlerts();else if(view==='unassigned')body='<div class="offline-note">'+safe(notice)+'</div>';else body=companyTab==='news'?newsPage():companyHome();
+ const tabs=['company','detail','alerts','article'].includes(view)&&c?`<div class="company-topline"><div><span class="company-initial">${safe(c?.name?.slice(0,1)||'公')}</span><strong>${safe(c?.name)}</strong></div><nav aria-label="公司页面">${companyNav.map(([v,i,t])=>`<button data-tab="${v}" class="${(view==='company'&&companyTab===v)||(view==='article'&&v==='news')?'active':''}">${icon(i)}${t}</button>`).join('')}</nav></div>`:'';
+ app.innerHTML=`<div class="workspace ${!isAdmin()?'customer-console':'admin-console'}"><aside class="sidebar"><a href="./" class="brand">${logo()}</a><div class="workspace-label">${isAdmin()?'平台管理':'公司工作空间'} <span>${isAdmin()?'ADMIN':'WORKSPACE'}</span></div><nav aria-label="主导航">${nav}</nav><div class="sidebar-bottom"><div class="help-card"><span class="help-icon">${icon('shield')}</span><strong>${isAdmin()?'统一管理，独立配置':'专属空间，清晰可见'}</strong><p>${isAdmin()?'按产业链管理公司，通过 Markdown 生成页面。':'查看本公司设备与预警，让每一项数据有迹可循。'}</p><span class="badge ${r.color}">${r.label}</span></div><div class="sidebar-user"><span class="user-avatar">${safe(currentUser.name?.slice(0,1)||'用')}</span><div><strong>${safe(currentUser.name)}</strong><small>${r.label}</small></div><button class="icon-button" id="logout" aria-label="退出登录" title="退出登录">${icon('logout')}</button></div></div></aside><div class="main-shell"><header class="topbar">${!isAdmin()?`<div class="console-header-search">${icon('eye')}<input id="console-global-search" type="search" aria-label="搜索公司设备" placeholder="搜索设备、设备 ID、位置…"></div><div class="console-header-meta"><span>仅本公司数据</span><button class="icon-button" data-console-section="alerts" aria-label="查看告警中心">${icon('bell')}${warningDevices().length?'<i></i>':''}</button><button class="console-account" data-tab="profile"><span>${safe(currentUser.name?.slice(0,1)||'用')}</span>${safe(currentUser.name)}</button></div>`:''}<div class="legacy-breadcrumb"><button class="crumb-button" data-route="${isAdmin()?'platform':'company'}">${isAdmin()?'平台管理':'公司空间'}</button><span class="slash">/</span><strong>${safe(labels[view]||'工作台')}</strong></div><div class="topbar-right"><span class="environment"><i></i> ${['usb','mqtt'].includes(view)?'本地接收':'演示空间'}</span><span class="badge ${r.color}">${icon('shield')}${r.label}</span></div></header><main class="main-content">${notice&&view!=='unassigned'?`<div class="notice" role="status">${safe(notice)}</div>`:''}${tabs}${body}<footer class="main-footer"><span>物联空间 · 连接供应链的每一环</span><span>${['usb','mqtt'].includes(view)?'显示实际接收信息':'公司设备数据为演示快照'}</span></footer></main></div></div>`;
+ bindPortal();bindNews();bindExperience();if(['usb','mqtt'].includes(view))startSerialPolling();
+}
+async function readJson(path){const response=await fetch(path,{cache:'no-store'});if(!response.ok)throw new Error(`无法读取 ${path}（${response.status}）`);return response.json();}
+async function passwordHash(text){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');}
+function enterUser(user){currentUser=normalizeUser(user);sessionStorage.setItem('workspace-user',currentUser.id);notice='';companyTab='home';companyId=currentUser.companyId||null;view=isAdmin()?'platform':'company';render();window.scrollTo({top:0,behavior:'instant'});}
+function logout(){stopSerialPolling();sessionStorage.removeItem('workspace-user');currentUser=null;companyId=null;deviceId=null;notice='';authMode='login';render();window.scrollTo({top:0,behavior:'instant'});}
+function bindAuth(){
+ document.querySelectorAll('[data-auth]').forEach(b=>b.onclick=()=>{authMode=b.dataset.auth;notice='';render();document.querySelector('#account').scrollIntoView({block:'start'});});
+ document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>{document.querySelector('#username').value=b.dataset.demo;document.querySelector('#password').value='123456';});
+ document.querySelector('#toggle-password').onclick=e=>{const p=document.querySelector('#password');p.type=p.type==='password'?'text':'password';e.currentTarget.setAttribute('aria-label',p.type==='password'?'显示密码':'隐藏密码');};
+ document.querySelector('#auth-form').onsubmit=async e=>{
+  e.preventDefault();const form=e.currentTarget,button=form.querySelector('[type=submit]');button.disabled=true;
+  try{
+   users=(await readJson('./users.json')).users.map(normalizeUser);
+   const username=form.elements.username.value.trim(),password=form.elements.password.value,hash=await passwordHash(password);
+   if(authMode==='login'){
+    const user=allUsers().find(u=>u.username===username&&u.passwordHash===hash);if(!user)throw new Error('账号或密码错误。');enterUser(user);routeArticleHash();
+   }else{
+    const name=form.elements.displayName.value.trim(),assigned=form.elements.companyId.value;
+    if(username.length<3||username.length>40||!name||password.length<6)throw new Error('请填写姓名、3–40 位账号和至少 6 位密码。');
+    if(password!==document.querySelector('#confirm-password').value)throw new Error('两次输入的密码不一致。');
+    if(!platform.companies.some(c=>c.id===assigned))throw new Error('请选择有效公司。');
+    if(allUsers().some(u=>u.username===username))throw new Error('该账号已存在。');
+    const user={id:'local-'+crypto.randomUUID(),username,name,passwordHash:hash,role:'customer',companyId:assigned};
+    localStorage.setItem(registeredKey,JSON.stringify([...registeredUsers(),user]));enterUser(user);routeArticleHash();
+   }
+  }catch(error){const target=document.querySelector('#auth-error');if(target)target.textContent=error.message;}finally{button.disabled=false;}
+ };
+}
+function bindPortal(){
+ const on=(selector,fn)=>{const el=document.querySelector(selector);if(el)el.onclick=fn;};
+ document.querySelectorAll('[data-route]').forEach(b=>b.onclick=()=>{
+  const next=b.dataset.route;if(!isAdmin()&&!['company','profile'].includes(next))return;
+  if(['usb','mqtt'].includes(next)){testMode=next;serialPaused=false;serialCursor=0;serialLines=[];serialDropped=false;serialState={source:next==='usb'?'serial':'mqtt',device:'/dev/ttyUSB0',baudrate:9600,host:'127.0.0.1',port:1883,topic:'rd-web/test/#',total:0,status:'connecting',error:''};}
+  if(next==='news'){companyId=null;navigate('news');refreshNews();return;}if(next==='company')companyTab='home';navigate(next);
+ });
+ document.querySelectorAll('[data-chain]').forEach(b=>b.onclick=()=>{if(isAdmin()){chainId=b.dataset.chain;navigate('chain');}});
+ document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{if(isAdmin()){categoryId=b.dataset.category;navigate('companies');}});
+ document.querySelectorAll('[data-admin-device]').forEach(b=>b.onclick=()=>openAdminDevice(b.dataset.adminDevice));
+ document.querySelectorAll('[data-company]').forEach(b=>b.onclick=()=>openCompany(b.dataset.company));
+ document.querySelectorAll('[data-device]').forEach(b=>b.onclick=()=>openDevice(b.dataset.device));
+ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{companyTab=b.dataset.tab;navigate(companyTab==='profile'?'profile':'company');if(companyTab==='news')refreshNews();});
+ document.querySelectorAll('[data-console-section]').forEach(button=>button.onclick=()=>{
+  const section=button.dataset.consoleSection,needsHome=view!=='company'||companyTab!=='home';companyTab='home';if(needsHome)navigate('company');
+  const target={devices:'#dashboard-devices',monitor:'#console-monitor',alerts:'#console-alerts'}[section];
+  document.querySelectorAll('.sidebar [data-console-section]').forEach(b=>b.classList.toggle('active',b.dataset.consoleSection===section));
+  if(target)document.querySelector(target)?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});else window.scrollTo({top:0,behavior:'instant'});
+ });
+ const bindRowButtons=()=>document.querySelectorAll('#console-device-rows [data-device]').forEach(b=>b.onclick=()=>openDevice(b.dataset.device));
+ const searchDevices=query=>{const rows=document.querySelector('#console-device-rows');if(rows){rows.innerHTML=consoleDeviceRows(query);bindRowButtons();}};
+ const tableSearch=document.querySelector('#console-device-search');if(tableSearch)tableSearch.oninput=()=>searchDevices(tableSearch.value);
+ const globalSearch=document.querySelector('#console-global-search');if(globalSearch)globalSearch.onkeydown=event=>{if(event.key!=='Enter')return;event.preventDefault();const query=globalSearch.value,needsHome=view!=='company'||companyTab!=='home';companyTab='home';if(needsHome)navigate('company');const input=document.querySelector('#console-device-search');if(input){input.value=query;searchDevices(query);input.scrollIntoView({block:'center'});input.focus();}};
+ on('#logout',logout);on('#profile-logout',logout);on('#warning-devices',openWarnings);on('#back-devices',()=>{companyTab='home';navigate('company');});
+ const overview=document.querySelector('#overview-device');if(overview)overview.onchange=()=>{overviewDeviceId=overview.value;render();};
+ on('[data-scroll-devices]',()=>document.querySelector('#dashboard-devices')?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'}));
+ const settings=document.querySelector('#settings-form');if(settings)settings.onsubmit=saveSettings;
+ on('#reset-settings',()=>{if(!canEdit())return;const overrides=readStorage(storageKey,{});delete overrides[deviceId];localStorage.setItem(storageKey,JSON.stringify(overrides));notice='已恢复设备默认配置。';render();});on('#export-config',exportConfig);
+ on('#pause-serial',()=>{serialPaused=!serialPaused;document.querySelector('#pause-serial').textContent=serialPaused?'继续显示':'暂停显示';startSerialPolling();});
+ on('#clear-serial',()=>{serialLines=[];serialDropped=false;updateSerialPanel();});on('#retry-serial',()=>{serialPaused=false;document.querySelector('#pause-serial').textContent='暂停显示';startSerialPolling();});
+ function editTemplate(action){
+  if(!isAdmin()||!company())return;
+  try{
+   const raw=document.querySelector('#template-editor').value,t=parseTemplate(raw);templateDraft=raw;
+   document.querySelector('#template-error').textContent='';
+   if(action==='preview'){document.querySelector('#template-preview').innerHTML=`<h2>${safe(t.config.title)}</h2><p>${safe(t.config.subtitle)}</p><p>统计组件：${t.config.widgets.map(safe).join(' / ')} · 设备列表：${t.config.showDevices?'显示':'隐藏'}</p>`+markdown(t.body);}
+   if(action==='save'){const overrides=readStorage(templateKey,{});overrides[companyId]=raw;localStorage.setItem(templateKey,JSON.stringify(overrides));companyTab='home';view='company';notice='公司页面已由 Markdown 生成并保存到当前浏览器。';render();}
+   if(action==='download'){const url=URL.createObjectURL(new Blob([raw],{type:'text/markdown;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=companyId+'.md';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  }catch(error){document.querySelector('#template-error').textContent=error.message;}
+ }
+ on('#preview-template',()=>editTemplate('preview'));on('#save-template',()=>editTemplate('save'));on('#download-template',()=>editTemplate('download'));
+ on('#reset-template',()=>{if(!isAdmin())return;const overrides=readStorage(templateKey,{});delete overrides[companyId];localStorage.setItem(templateKey,JSON.stringify(overrides));templateDraft=null;render();});
+}
+async function init(){
+ try{
+  const results=await Promise.all([readJson('./users.json'),readJson('./devices.json'),readJson('./platform.json')]);
+  users=results[0].users.map(normalizeUser);scenes=results[1].scenes;devices=results[1].devices;platform=results[2];
+  await Promise.all(platform.companies.map(async c=>{try{if(!/^content\/companies\/[a-z0-9-]+\.md$/.test(c.template))throw new Error('公司模板路径无效。');const r=await fetch('./'+c.template,{cache:'no-store'});if(!r.ok)throw new Error(`无法读取 ${c.template}`);templates[c.id]=await r.text();}catch(error){templateErrors[c.id]=error.message;}}));
+  await loadNews();window.addEventListener('hashchange',routeArticleHash);
+  const saved=sessionStorage.getItem('workspace-user'),u=allUsers().find(u=>u.id===saved);if(u){enterUser(u);routeArticleHash();}else render();
+ }catch(error){app.innerHTML=`<main class="load-error"><h1>页面加载失败</h1><p>${safe(error.message)}</p><p>请通过本地预览服务或 GitHub Pages 打开。</p><button class="primary" onclick="location.reload()">重试</button></main>`;}
+}
+init();
