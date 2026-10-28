@@ -16,7 +16,7 @@ def build(output):
     if data['errors']:
         raise ValueError('\n'.join(data['errors']))
     output.mkdir(parents=True, exist_ok=True)
-    for name in ['index.html', 'app.js', 'portal.js', 'visual.js', 'news.js', 'styles.css',
+    for name in ['index.html', 'app.js', 'telemetry.js', 'portal.js', 'visual.js', 'news.js', 'styles.css',
                  'users.json', 'devices.json', 'platform.json']:
         shutil.copy2(ROOT / name, output / name)
     for name in ['content', 'assets']:

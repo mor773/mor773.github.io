@@ -126,7 +126,7 @@ class Handler(SimpleHTTPRequestHandler):
             templates = set()
         asset = (root / unquote(path.path).lstrip('/')).resolve()
         news_image = path.path.startswith('/assets/news/') and asset.is_relative_to((root / 'assets/news').resolve()) and asset.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif'}
-        if path.path not in templates | {'/', '/index.html', '/app.js', '/visual.js', '/news.js', '/portal.js', '/styles.css', '/assets/workspace/city.jpg', '/users.json', '/platform.json', '/devices.json', '/favicon.ico'} and not news_image:
+        if path.path not in templates | {'/', '/index.html', '/app.js', '/telemetry.js', '/visual.js', '/news.js', '/portal.js', '/styles.css', '/assets/workspace/city.jpg', '/users.json', '/platform.json', '/devices.json', '/favicon.ico'} and not news_image:
             self.send_error(404)
             return
         super().do_GET()
@@ -158,7 +158,7 @@ def main():
     handler = partial(Handler, monitors=monitors, directory=str(Path(__file__).resolve().parent))
     server = ThreadingHTTPServer(('127.0.0.1', args.port), handler)
     print(f'本地预览：http://127.0.0.1:{args.port}/', flush=True)
-    print('登录平台管理员，进入测试后才会连接对应接收源；Ctrl+C 停止。', flush=True)
+    print('进入设备管理或 MQTT 测试后启动 MQTT 接收；USB 接收在 USB 测试中启动；Ctrl+C 停止。', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

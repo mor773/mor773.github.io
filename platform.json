@@ -12,7 +12,14 @@
       "name": "工业链",
       "icon": "power",
       "color": "blue",
-      "description": "从生产、维保到仓储，掌握设备全生命周期。"
+      "description": "连接生产与维保，掌握设备运行与维护状态。"
+    },
+    {
+      "id": "logistics",
+      "name": "物流链",
+      "icon": "truck",
+      "color": "orange",
+      "description": "连接仓储与物流，让货物周转与设备状态清晰可见。"
     }
   ],
   "categories": [
@@ -20,31 +27,46 @@
       "id": "planting",
       "chainId": "agriculture",
       "name": "种植园",
-      "icon": "environment"
+      "icon": "environment",
+      "sceneIds": [
+        "planting"
+      ]
     },
     {
       "id": "breeding",
       "chainId": "agriculture",
       "name": "养殖场",
-      "icon": "environment"
+      "icon": "environment",
+      "sceneIds": [
+        "pig-house"
+      ]
     },
     {
       "id": "production",
       "chainId": "industry",
       "name": "生产",
-      "icon": "power"
+      "icon": "power",
+      "sceneIds": [
+        "power-line"
+      ]
     },
     {
       "id": "maintenance",
       "chainId": "industry",
       "name": "维保",
-      "icon": "settings"
+      "icon": "settings",
+      "sceneIds": [
+        "power-line"
+      ]
     },
     {
       "id": "warehouse",
-      "chainId": "industry",
+      "chainId": "logistics",
       "name": "仓储",
-      "icon": "folder"
+      "icon": "folder",
+      "sceneIds": [
+        "warehouse-environment"
+      ]
     }
   ],
   "companies": [
@@ -86,7 +108,7 @@
     {
       "id": "company-f",
       "name": "云仓物流",
-      "description": "仓储运营 · 用电安全监测",
+      "description": "仓储运营 · 温湿度与光照监测",
       "categoryId": "warehouse",
       "template": "content/companies/company-f.md"
     }

@@ -11,7 +11,7 @@
         {
           "key": "temperature",
           "name": "温度",
-          "unit": "°C",
+          "unit": "℃",
           "min": 18,
           "max": 30,
           "icon": "temperature"
@@ -45,7 +45,7 @@
         {
           "key": "temperature",
           "name": "线材温度",
-          "unit": "°C",
+          "unit": "℃",
           "min": 0,
           "max": 70,
           "icon": "temperature"
@@ -79,7 +79,7 @@
         {
           "key": "temperature",
           "name": "温度",
-          "unit": "°C",
+          "unit": "℃",
           "min": 15,
           "max": 32,
           "icon": "temperature"
@@ -99,6 +99,40 @@
           "min": 30,
           "max": 75,
           "icon": "environment"
+        }
+      ]
+    },
+    {
+      "id": "warehouse-environment",
+      "name": "仓储环境监测",
+      "subtitle": "物流仓储",
+      "description": "监测仓库温湿度与光照，关注货物存储环境和采集设备状态。",
+      "icon": "truck",
+      "color": "orange",
+      "metrics": [
+        {
+          "key": "temperature",
+          "name": "仓库温度",
+          "unit": "℃",
+          "min": 0,
+          "max": 35,
+          "icon": "temperature"
+        },
+        {
+          "key": "humidity",
+          "name": "仓库湿度",
+          "unit": "%",
+          "min": 30,
+          "max": 75,
+          "icon": "humidity"
+        },
+        {
+          "key": "illuminance",
+          "name": "光照强度",
+          "unit": "lx",
+          "min": 0,
+          "max": 2000,
+          "icon": "eye"
         }
       ]
     }
@@ -354,47 +388,47 @@
       "companyId": "company-e"
     },
     {
-      "id": "PWR-003",
-      "sceneId": "power-line",
-      "name": "设备 3",
-      "location": "C 区 · 线缆通道",
+      "id": "LOG-001",
+      "sceneId": "warehouse-environment",
+      "name": "仓储环境采集终端 1",
+      "location": "1 号仓库 · 货架区",
       "online": false,
       "sampleInterval": 30,
       "values": {
-        "temperature": 39.2,
-        "voltage": 10.3,
-        "current": 108.2
+        "temperature": 24.6,
+        "humidity": 58.2,
+        "illuminance": 326
       },
       "history": {
         "temperature": [
-          34.9,
-          36.5,
-          35.3,
-          38.0,
-          37.2,
-          40.0,
-          38.4,
-          39.2
+          23.4,
+          23.6,
+          23.8,
+          24.1,
+          24.0,
+          24.3,
+          24.5,
+          24.6
         ],
-        "voltage": [
-          9.2,
-          9.6,
-          9.3,
-          10.0,
-          9.8,
-          10.5,
-          10.1,
-          10.3
+        "humidity": [
+          55.1,
+          55.8,
+          56.3,
+          57.0,
+          56.6,
+          57.4,
+          58.0,
+          58.2
         ],
-        "current": [
-          96.3,
-          100.6,
-          97.4,
-          105.0,
-          102.8,
-          110.4,
-          106.0,
-          108.2
+        "illuminance": [
+          302,
+          310,
+          308,
+          318,
+          322,
+          315,
+          324,
+          326
         ]
       },
       "diagnostics": [
